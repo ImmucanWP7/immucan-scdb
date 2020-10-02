@@ -2,7 +2,7 @@
 
 Processing scripts for scRNA-seq database
 
-Start from a seurat object
+Start from a seurat object that is named raw.rds
 
 Run the following scProcessor steps (fill in squared brackets)
 

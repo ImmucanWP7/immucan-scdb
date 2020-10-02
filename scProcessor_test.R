@@ -1,0 +1,60 @@
+#!/usr/bin/env Rscript
+args = commandArgs(trailingOnly=TRUE)
+batch = args[1] #batch variable in the metadata slot
+normalized = args[2] #Boolean to indicate if data is already normalized
+QC_feature_min = 200 #Minimal features threshold
+QC_mt_max = 15 #Maximum mitochondrial content threshold
+pca_dims = 30 #Amount of PCA dimensions to use
+features_var = 2000 #Amount of variable features to select
+object_path = "raw.rds" #_raw.rds file
+
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+library(Matrix)
+library(dplyr)
+
+dir <- getwd()
+setwd(dir)
+ifelse(!dir.exists("temp"), dir.create("temp"), FALSE)
+ifelse(!dir.exists("out"), dir.create("out"), FALSE)
+
+# QC
+
+seurat <- readRDS(object_path)
+cells_before_QC <- ncol(seurat)
+seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^MT-")
+
+p1 <- AugmentPlot(VlnPlot(seurat, features = "nFeature_RNA", pt.size = 0.1, group.by = batch, log = TRUE)) + 
+  NoLegend() +
+  scale_y_log10("Genes", expand = c(0,0)) + 
+  geom_hline(yintercept = QC_feature_min, color = "red") + 
+  theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text(), axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+p2 <- AugmentPlot(VlnPlot(seurat, features = "nCount_RNA", pt.size = 0.1, group.by = batch, log = TRUE)) + 
+  NoLegend() + 
+  scale_y_log10("Counts", expand = c(0,0)) + 
+  theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text(), axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+p3 <- AugmentPlot(VlnPlot(seurat, features = "percent.mt", pt.size = 0.1, group.by = batch)) + 
+  NoLegend() +
+  geom_hline(yintercept = QC_mt_max, color = "red") + 
+  scale_y_continuous("Mito", expand = c(0,0)) +
+  theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text())
+
+seurat <- subset(seurat, subset = nFeature_RNA > QC_feature_min & percent.mt < QC_mt_max)
+
+# Prepare
+
+if (normalized == FALSE) {
+  seurat <- Seurat::NormalizeData(seurat, verbose = TRUE)
+}
+seurat <- seurat %>% 
+  FindVariableFeatures(selection.method = "vst", nfeatures = features_var, verbose=TRUE) %>% 
+  ScaleData(verbose = TRUE) %>% 
+  RunPCA(pc.genes = seurat@var.genes, npcs = pca_dims+20, verbose = TRUE) %>%
+  RunUMAP(dims = 1:pca_dims, a = .5, b = 1.2, verbose = TRUE)
+
+p4 <- ElbowPlot(seurat, ndims = pca_dims+20) + geom_vline(xintercept = pca_dims, color = "red") + ylab("STDEV PCA") + theme(axis.title.x = element_blank())
+p <- p4 / p1 / p2 / p3
+ggsave(plot = p, filename = "out/QC.png")

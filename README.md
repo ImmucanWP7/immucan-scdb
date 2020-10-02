@@ -17,10 +17,7 @@ Rscript scProcessor_test.R [batch] [normalized]
 ```
 
 3. Run scProcessor_1
-better done with slurm if on an HPC (adapt vars in bash file)
-```
-bash scProcessor_1.sh
-```
+better done with slurm if on an HPC (adapt vars in bash file) `bash scProcessor_1.sh`
 
 on terminal
 ```
@@ -33,10 +30,7 @@ Create an excel file called annotation.xlsx with two columns: seurat clusters an
 Add the cell type abbreviation as defined in cell_ontology.xlsx in the abbreviation column to the corresponding seurat cluster
 
 5. Run scProcessor_2
-better done with slurm if on an HPC (adapt vars in bash file)
-```
-bash scProcessor_2.sh
-```
+better done with slurm if on an HPC (adapt vars in bash file) `bash scProcessor_2.sh`
 
 on terminal
 ```

@@ -9,7 +9,7 @@ pca_dims = as.numeric(args[5]) #Amount of PCA dimensions to use
 features_var = 2000 #Amount of variable features to select
 cluster_resolution = c(1) #At which resolutions to cluster the data
 object_path = "raw.rds" #_raw.rds file
-cellMarker_file = "/gpfs01/bhcbio/projects/research_studies/20190920_IMMUCan_Public_data/scRNAseq_database/TME_markerGenes.xlsx"
+cellMarker_file = "/gpfs01/home/glanl/scripts/IMMUcan/TME_markerGenes.xlsx"
 #garnett_classifier = "/gpfs01/bhcbio/projects/research_studies/20190920_IMMUCan_Public_data/Garnett_train_datasets/NSCLC_Unbiased_Lambrechts/NSCLC_ALL_10X_garnettTrain_garnett_classifier.rds" #path of garnett classifier
 
 

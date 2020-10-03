@@ -16,36 +16,50 @@ Start from a seurat object that is named raw.rds
 
 Run the following scProcessor steps **(FILL SQUARED BRACKETS)**
 
-### 1. Check Seurat object with check_seurat.R
+#### 1. Check Seurat object with check_seurat.R
+
+- [SEURAT]: path to seurat object
 
 ``` 
-Rscript check_seurat.R [PATH TO SEURAT OBJECT] 
+Rscript check_seurat.R [SEURAT] 
 ```
 
-### 2. Test scProcessor to put desired QC thresholds and check batch variable
+Prints cell_id, gene_id, checks if metadata is correctly linked, checks normalization and stores it in data.rds and prints meta.data
+
+#### 2. Test scProcessor to put desired QC thresholds and check batch variable
 
 ``` 
-Rscript scProcessor_test.R [NORMALIZED T/F] 
+Rscript scProcessor_test.R
 ```
 
-### 3. Run scProcessor_1
+Saves QC and elbowplot in temp/
+
+#### 3. Run scProcessor_1
 
 Bayer only: `bash scProcessor_1.sh` with slurm if on an HPC (adapt vars in bash file)
+- [BATCH]: name of the batch column in the metadata (often patient or sample)
+- [FEATURES]: minimum amount of detected genes per cell allowed
+- [MITO]: maximum percentage of mitochondrial reads per cell allowed
+- [PCA]: number of PCA dimensions to use for downstream processing
 
 ```
-Rscript scProcessor_1.R [BATCH] [NORMALIZED T/F] [MIN FEATURES] [MAX MITO] [PCA DIMS]
+Rscript scProcessor_1.R [BATCH] [FEATURES] [MITO] [PCA]
 ```
 
-### 4. Annotate data
+Does QC, integration, dimensionality reduction, clustering and outputs marker gene plots in temp/
 
-Check plots in temp folder
-Create an excel file called annotation.xlsx with two columns: seurat clusters and abbreviation
-Add the cell type abbreviation as defined in cell_ontology.xlsx in the abbreviation column to the corresponding seurat cluster
+#### 4. Annotate data
 
-### 5. Run scProcessor_2
+Check plots in temp/.
+Create an excel file called annotation.xlsx with two columns: seurat clusters and abbreviation.
+Add the cell type abbreviation as defined in cell_ontology.xlsx in the abbreviation column to the corresponding seurat cluster.
+
+#### 5. Run scProcessor_2
 
 Bayer only: `bash scProcessor_2.sh` with slurm if on an HPC (adapt vars in bash file)
 
 ```
 Rscript scProcessor_2.R
 ```
+
+Links annotation to seurat_clusters, includes cell ontology, performs differential expression, creates output files

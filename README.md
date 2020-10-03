@@ -32,7 +32,7 @@ Rscript scProcessor_test.R
 
 Saves QC and elbowplot in temp/
 
-### 3. Run scProcessor_1
+#### 3. Run scProcessor_1
 
 Bayer only: `bash scProcessor_1.sh` with slurm if on an HPC (adapt vars in bash file)
 
@@ -42,13 +42,13 @@ Rscript scProcessor_1.R [BATCH] [MIN FEATURES] [MAX MITO] [PCA DIMS]
 
 Does QC, integration, dimensionality reduction, clustering and outputs marker gene plots in temp/
 
-### 4. Annotate data
+#### 4. Annotate data
 
 Check plots in temp folder
 Create an excel file called annotation.xlsx with two columns: seurat clusters and abbreviation
 Add the cell type abbreviation as defined in cell_ontology.xlsx in the abbreviation column to the corresponding seurat cluster
 
-### 5. Run scProcessor_2
+#### 5. Run scProcessor_2
 
 Bayer only: `bash scProcessor_2.sh` with slurm if on an HPC (adapt vars in bash file)
 

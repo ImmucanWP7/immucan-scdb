@@ -11,9 +11,9 @@ Run the following scProcessor steps (fill in squared brackets)
 Rscript check_seurat.R [path to seurat object] 
 ```
 
-2. Test scProcessor to put desired QC thresholds and batch variable (batch variable check follows in next update)
+2. Test scProcessor to put desired QC thresholds and check batch variable
 ``` 
-Rscript scProcessor_test.R [batch] [normalized] 
+Rscript scProcessor_test.R [normalized] 
 ```
 
 3. Run scProcessor_1

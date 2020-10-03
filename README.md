@@ -18,8 +18,10 @@ Run the following scProcessor steps **(FILL SQUARED BRACKETS)**
 
 #### 1. Check Seurat object with check_seurat.R
 
+- [SEURAT]: path to seurat object
+
 ``` 
-Rscript check_seurat.R [PATH TO SEURAT OBJECT] 
+Rscript check_seurat.R [SEURAT] 
 ```
 
 Prints cell_id, gene_id, checks if metadata is correctly linked, checks normalization and stores it in data.rds and prints meta.data
@@ -34,10 +36,14 @@ Saves QC and elbowplot in temp/
 
 #### 3. Run scProcessor_1
 
+- [BATCH]: name of the batch column in the metadata (often patient or sample)
+- [FEATURES]: minimum amount of detected genes per cell allowed
+- [MITO]: maximum percentage of mitochondrial reads per cell allowed
+- [PCA]: number of PCA dimensions to use for downstream processing
 Bayer only: `bash scProcessor_1.sh` with slurm if on an HPC (adapt vars in bash file)
 
 ```
-Rscript scProcessor_1.R [BATCH] [MIN FEATURES] [MAX MITO] [PCA DIMS]
+Rscript scProcessor_1.R [BATCH] [FEATURES] [MITO] [PCA]
 ```
 
 Does QC, integration, dimensionality reduction, clustering and outputs marker gene plots in temp/

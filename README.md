@@ -16,25 +16,31 @@ Start from a seurat object that is named raw.rds
 
 Run the following scProcessor steps **(FILL SQUARED BRACKETS)**
 
-### 1. Check Seurat object with check_seurat.R
+#### 1. Check Seurat object with check_seurat.R
 
 ``` 
 Rscript check_seurat.R [PATH TO SEURAT OBJECT] 
 ```
 
-### 2. Test scProcessor to put desired QC thresholds and check batch variable
+Prints cell_id, gene_id, checks if metadata is correctly linked, checks normalization and stores it in data.rds and prints meta.data
+
+#### 2. Test scProcessor to put desired QC thresholds and check batch variable
 
 ``` 
-Rscript scProcessor_test.R [NORMALIZED T/F] 
+Rscript scProcessor_test.R
 ```
+
+Saves QC and elbowplot in temp/
 
 ### 3. Run scProcessor_1
 
 Bayer only: `bash scProcessor_1.sh` with slurm if on an HPC (adapt vars in bash file)
 
 ```
-Rscript scProcessor_1.R [BATCH] [NORMALIZED T/F] [MIN FEATURES] [MAX MITO] [PCA DIMS]
+Rscript scProcessor_1.R [BATCH] [MIN FEATURES] [MAX MITO] [PCA DIMS]
 ```
+
+Does QC, integration, dimensionality reduction, clustering and outputs marker gene plots in temp/
 
 ### 4. Annotate data
 
@@ -49,3 +55,5 @@ Bayer only: `bash scProcessor_2.sh` with slurm if on an HPC (adapt vars in bash 
 ```
 Rscript scProcessor_2.R
 ```
+
+Links annotation to seurat_clusters, includes cell ontology, performs differential expression, creates output files

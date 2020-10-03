@@ -1,14 +1,14 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)
 batch = args[1] #batch variable in the metadata slot
-normalized = args[2] #Boolean to indicate if data is already normalized
-QC_feature_min = as.numeric(args[3]) #Minimal features threshold
-QC_mt_max = as.numeric(args[4]) #Maximum mitochondrial content threshold
-pca_dims = as.numeric(args[5]) #Amount of PCA dimensions to use
+QC_feature_min = as.numeric(args[2]) #Minimal features threshold
+QC_mt_max = as.numeric(args[3]) #Maximum mitochondrial content threshold
+pca_dims = as.numeric(args[4]) #Amount of PCA dimensions to use
 
+data = "temp/data.rds" #If data is already normalized or not, stored by check_seurat.R
 features_var = 2000 #Amount of variable features to select
 cluster_resolution = c(1) #At which resolutions to cluster the data
-object_path = "raw.rds" #_raw.rds file
+object_path = "temp/raw.rds" #_raw.rds file
 cellMarker_file = "/gpfs01/home/glanl/scripts/IMMUcan/TME_markerGenes.xlsx"
 #garnett_classifier = "/gpfs01/bhcbio/projects/research_studies/20190920_IMMUCan_Public_data/Garnett_train_datasets/NSCLC_Unbiased_Lambrechts/NSCLC_ALL_10X_garnettTrain_garnett_classifier.rds" #path of garnett classifier
 
@@ -28,10 +28,13 @@ library(patchwork)
 library(Matrix)
 library(dplyr)
 
+# Recreate seurat object
+
+seurat <- readRDS(object_path)
+data <- readRDS(data)
 
 # QC
 
-seurat <- readRDS(object_path)
 cells_before_QC <- ncol(seurat)
 seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^Mt\\.|^MT\\.|^mt\\.|^Mt-|^MT-|^mt-")
 
@@ -53,11 +56,10 @@ p3 <- AugmentPlot(VlnPlot(seurat, features = "percent.mt", pt.size = 0.1, group.
   theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text())
 
 seurat <- subset(seurat, subset = nFeature_RNA > QC_feature_min & percent.mt < QC_mt_max)
-seurat <- seurat[rowSums(as.matrix(seurat[["RNA"]]@counts == 0)), ] # remove gene with 0 total counts
 
 # Prepare
 
-if (normalized == FALSE) {
+if (data$norm == FALSE) {
   seurat <- Seurat::NormalizeData(seurat, verbose = TRUE)
 }
 seurat <- seurat %>% 

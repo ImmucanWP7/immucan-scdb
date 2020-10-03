@@ -44,9 +44,9 @@ Does QC, integration, dimensionality reduction, clustering and outputs marker ge
 
 #### 4. Annotate data
 
-Check plots in temp folder
-Create an excel file called annotation.xlsx with two columns: seurat clusters and abbreviation
-Add the cell type abbreviation as defined in cell_ontology.xlsx in the abbreviation column to the corresponding seurat cluster
+Check plots in temp/.
+Create an excel file called annotation.xlsx with two columns: seurat clusters and abbreviation.
+Add the cell type abbreviation as defined in cell_ontology.xlsx in the abbreviation column to the corresponding seurat cluster.
 
 #### 5. Run scProcessor_2
 

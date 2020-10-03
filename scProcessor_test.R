@@ -1,12 +1,12 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)
 #batch = args[1] #batch variable in the metadata slot
-normalized = args[1] #Boolean to indicate if data is already normalized
+object_path = "temp/raw.rds" #_raw.rds file
+data = "temp/data.rds" #If data is already normalized or not, stored by check_seurat.R
 QC_feature_min = 200 #Minimal features threshold
 QC_mt_max = 15 #Maximum mitochondrial content threshold
 pca_dims = 30 #Amount of PCA dimensions to use
 features_var = 2000 #Amount of variable features to select
-object_path = "raw.rds" #_raw.rds file
 
 library(Seurat)
 library(ggplot2)
@@ -22,6 +22,7 @@ ifelse(!dir.exists("out"), dir.create("out"), FALSE)
 # QC
 
 seurat <- readRDS(object_path)
+data <- readRDS(data)
 seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^MT-")
 
 for (i in colnames(seurat@meta.data)) {
@@ -51,7 +52,7 @@ seurat <- subset(seurat, subset = nFeature_RNA > QC_feature_min & percent.mt < Q
 
 # Prepare
 
-if (normalized == FALSE) {
+if (data$norm == FALSE) {
   seurat <- Seurat::NormalizeData(seurat, verbose = TRUE)
 }
 seurat <- seurat %>% 

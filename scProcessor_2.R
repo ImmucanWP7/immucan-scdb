@@ -2,7 +2,7 @@
 args = commandArgs(trailingOnly=TRUE)
 object_path = "temp/harmony.rds" #harmony.rds file
 annotationFile_path = "annotation.xlsx" #path to annotation file
-cellOntology_path = "/gpfs01/bhcbio/projects/research_studies/20190920_IMMUCan_Public_data/scRNAseq_database/cell_ontology.xlsx"
+cellOntology_path = "/gpfs01/home/glanl/scripts/IMMUcan/cell_ontology.xlsx"
 meta_cols_umap = c("age", "patient", "biopsy", "tissue", "sample", "seurat_clusters", "annotation_authors", "nCount_RNA", "nFeature_RNA", "annotation_major", "annotation_immune", "annotation_minor")
 meta_cols_barplot = c("patient", "biopsy", "tissue", "treatment", "treatment_prior", "treatment_response", "treatment_timepoint", "disease_stage")
 
@@ -94,7 +94,7 @@ write.table(geneIndex, "out/gene_index.tsv", row.names = TRUE, sep = "\t")
 # Export
 
 #Seurat
-saveRDS(seurat, "harmony.rds")
+saveRDS(seurat, "out/harmony.rds")
 #SaveH5Seurat(seurat, filename = paste(gsub("_raw.rds", "", object_path), "harmony.h5Seurat", sep = "_"), overwrite = TRUE)
 #Convert(paste(gsub("_raw.rds", "", object_path), "harmony.h5Seurat", sep = "_"), dest = "h5ad", overwrite = TRUE)
 
@@ -110,7 +110,7 @@ Idents(seurat) <- seurat$annotation_minor
 temp <- AverageExpression(seurat, assays = "RNA")
 write.table(x = temp$RNA, file = "out/avgExpr_minor.tsv", row.names = TRUE, sep = "\t")
 # Export metadata with umap coordinates
-write.table(x = cbind(seurat@meta.data, tibble::as_data_frame(seurat@reductions$umap@cell.embeddings)), file = "out/metadata.csv", row.names = TRUE, sep = "\t")
+write.table(x = cbind(seurat@meta.data, tibble::as_data_frame(seurat@reductions$umap@cell.embeddings)), file = "out/metadata.tsv", row.names = TRUE, sep = "\t")
 
 Idents(seurat) <- seurat$cell_ontology
 seurat@meta.data <- seurat@meta.data[, !grepl("RNA_snn_res|abbreviation|cell_id|cell.id|orig.ident|cell_ontology", colnames(seurat@meta.data))]

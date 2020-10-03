@@ -110,7 +110,7 @@ Idents(seurat) <- seurat$annotation_minor
 temp <- AverageExpression(seurat, assays = "RNA")
 write.table(x = temp$RNA, file = "out/avgExpr_minor.tsv", row.names = TRUE, sep = "\t")
 # Export metadata with umap coordinates
-write.table(x = cbind(seurat@meta.data, as.data.frame(seurat@reductions$umap@cell.embeddings)), file = "out/metadata.tsv", row.names = TRUE, sep = "\t")
+write.table(x = cbind(seurat@meta.data, seurat@reductions$umap@cell.embeddings), file = "out/metadata.tsv", row.names = TRUE, sep = "\t")
 
 Idents(seurat) <- seurat$cell_ontology
 seurat@meta.data <- seurat@meta.data[, !grepl("RNA_snn_res|abbreviation|cell_id|cell.id|orig.ident|cell_ontology", colnames(seurat@meta.data))]

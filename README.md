@@ -36,11 +36,11 @@ Saves QC and elbowplot in temp/
 
 #### 3. Run scProcessor_1
 
+Bayer only: `bash scProcessor_1.sh` with slurm if on an HPC (adapt vars in bash file)
 - [BATCH]: name of the batch column in the metadata (often patient or sample)
 - [FEATURES]: minimum amount of detected genes per cell allowed
 - [MITO]: maximum percentage of mitochondrial reads per cell allowed
 - [PCA]: number of PCA dimensions to use for downstream processing
-Bayer only: `bash scProcessor_1.sh` with slurm if on an HPC (adapt vars in bash file)
 
 ```
 Rscript scProcessor_1.R [BATCH] [FEATURES] [MITO] [PCA]

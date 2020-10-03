@@ -1,5 +1,5 @@
 #!/bin/bash
-SCRIPT='/gpfs01/home/glanl/scripts/scProcessor_2.R'
+SCRIPT='/gpfs01/home/glanl/scripts/IMMUcan/scProcessor_2.R'
 
 module use /gpfs01/sw/eb-2019/modules/all /gpfs01/sw/eb-rh7/modules/all /gpfs01$
 ml Anaconda3/2020.02.lua

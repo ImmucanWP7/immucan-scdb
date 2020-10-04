@@ -74,8 +74,8 @@ for (i in temp) {
 
 # DE
 
-if (ncol(seurat) > 5000) {
-  sample_cells <- sample(x = colnames(seurat), size = 5000, replace = FALSE)
+if (ncol(seurat) > 25000) {
+  sample_cells <- sample(x = colnames(seurat), size = 25000, replace = FALSE)
   seurat_sampled <- seurat[, sample_cells]
 } else {
   seurat_sampled <- seurat

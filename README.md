@@ -50,8 +50,11 @@ Does QC, integration, dimensionality reduction, clustering and outputs marker ge
 
 #### 4. Annotate data
 
-Check plots in temp/: marker gene plots, dotplot, and top10 diffentially expressed genes per seurat cluster.
-Fill in abbreviation column, as defined in cell_ontology.xlsx, in annotation.xls.
+- Check plots in temp/:
+  - marker gene plots
+  - dotplot
+  - top10 diffentially expressed genes per seurat cluster
+- Fill in abbreviation column, as defined in cell_ontology.xlsx, in annotation.xls
 
 
 #### 5. Run scProcessor_2

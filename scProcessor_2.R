@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)
 object_path = "temp/harmony.rds" #harmony.rds file
-annotationFile_path = "annotation.xlsx" #path to annotation file
+annotationFile_path = "temp/annotation.xls" #path to annotation file
 cellOntology_path = "/gpfs01/home/glanl/scripts/IMMUcan/cell_ontology.xlsx"
 meta_cols_umap = c("age", "patient", "biopsy", "tissue", "sample", "seurat_clusters", "annotation_authors", "nCount_RNA", "nFeature_RNA", "annotation_major", "annotation_immune", "annotation_minor")
 meta_cols_barplot = c("patient", "biopsy", "tissue", "treatment", "treatment_prior", "treatment_response", "treatment_timepoint", "disease_stage")
@@ -23,7 +23,6 @@ seurat <- readRDS(object_path)
 
 #makeReference, takes a Seurat Object and name of meta data column that contains the clusters. Returns a ranking of genes.
 makeReference = function(seuratObj, groupBy) {
-  
   groupBy = which(colnames(seuratObj@meta.data) == groupBy)
   gs = sortGenes(seuratObj@assays$RNA@counts, factor(seuratObj@meta.data[,groupBy]), binarizeMethod = "naive", cores = 1)
   pp = getPValues(gs, numPerm = 5, cores = 1)
@@ -32,7 +31,6 @@ makeReference = function(seuratObj, groupBy) {
   ref = mm$gene_shannon_index
   ref[!pp] = max(ref[[2]])
   return(sort(ref, decreasing = FALSE))
-  
 }
 
 # Annotate
@@ -76,7 +74,13 @@ for (i in temp) {
 
 # DE
 
-seurat.markers <- FindAllMarkers(seurat, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25)
+if (ncol(seurat) > 5000) {
+  sample_cells <- sample(x = colnames(seurat), size = 5000, replace = FALSE)
+  seurat_sampled <- seurat[, sample_cells]
+} else {
+  seurat_sampled <- seurat
+}
+seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25)
 write.table(seurat.markers, paste("out/DE_genes.tsv", sep = "_"), sep = "\t")
 
 seurat@meta.data %>%

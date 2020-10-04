@@ -54,7 +54,7 @@ Does QC, integration, dimensionality reduction, clustering and outputs marker ge
   - marker gene plots
   - dotplot
   - top10 diffentially expressed genes per seurat cluster
-- Fill in abbreviation column, as defined in cell_ontology.xlsx, in annotation.xls
+- In annotation.xls, fill in cell types as defined in cell_ontology.xlsx in the abbreviation column
 
 
 #### 5. Run scProcessor_2

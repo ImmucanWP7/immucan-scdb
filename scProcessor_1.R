@@ -132,8 +132,9 @@ ggsave(plot = p, filename = "out/Harmony.png")
 if (ncol(seurat) > 5000) {
   sample_cells <- sample(x = colnames(seurat), size = 5000, replace = FALSE)
   seurat_sampled <- seurat[, sample_cells]
+} else {
+  seurat_sampled <- seurat
 }
-
 seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = .25)
 write.table(seurat.markers, "temp/DEtop10_seuratClusters.tsv", sep = "\t")
 

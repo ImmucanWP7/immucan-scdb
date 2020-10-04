@@ -142,13 +142,19 @@ write.table(seurat.markers, "temp/DEtop10_seuratClusters.tsv", sep = "\t")
 
 cell.markers <- readxl::read_excel(cellMarker_file)
 p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip() + NoLegend()
-WriteXLS(x = list("annotation" = data_frame("seurat_cluster" = ggplot_build(p)$layout$panel_params[[1]]$x$breaks, "abbreviation" = "Fill in")), ExcelFileName = "annotation.xls")
+WriteXLS(x = list("annotation" = tibble("seurat_cluster" = ggplot_build(p0)$layout$panel_params[[1]]$x$breaks, "abbreviation" = "Fill in")), ExcelFileName = "temp/annotation.xls")
 ggsave(plot = p0, filename = "temp/Dotplot_seuratClusters.png", dpi = 100, height = 12, width = 12)
 p1 <- AugmentPlot(DimPlot(seurat, group.by = "seurat_clusters", label = TRUE, label.size = 12))
 cell.markers <- cell.markers[cell.markers$gene %in% rownames(seurat), ]
 for (type in unique(cell.markers$category)) {
   p2 <- FeaturePlot(seurat, features = cell.markers[cell.markers$category == type, ]$gene, pt.size = .1)
-  p <- p1 + plot_spacer() / p2
+  p3 <- DotPlot(seurat, features = cell.markers[cell.markers$category == type, ]$gene, group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip() + NoLegend()
+  layout <- "
+  ACC
+  BBB
+  BBB
+  "
+  p <- p1 + p2 + p3 + plot_layout(design = layout)
   ggsave(plot = p, filename = paste0("temp/", type, ".png"), height = 20, width = 20, dpi = 100)
 }
 

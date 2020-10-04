@@ -50,9 +50,9 @@ Does QC, integration, dimensionality reduction, clustering and outputs marker ge
 
 #### 4. Annotate data
 
-Check plots in temp/.
-Create an excel file called annotation.xlsx with two columns: seurat clusters and abbreviation.
-Add the cell type abbreviation as defined in cell_ontology.xlsx in the abbreviation column to the corresponding seurat cluster.
+Check plots in temp/: marker gene plots, dotplot, and top10 diffentially expressed genes per seurat cluster.
+Fill in abbreviation column, as defined in cell_ontology.xlsx, in annotation.xls.
+
 
 #### 5. Run scProcessor_2
 

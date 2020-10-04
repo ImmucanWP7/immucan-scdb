@@ -27,6 +27,8 @@ library(ggplot2)
 library(patchwork)
 library(Matrix)
 library(dplyr)
+library(WriteXLS)
+set.seed(111)
 
 # Recreate seurat object
 
@@ -125,18 +127,27 @@ ggsave(plot = p, filename = "out/Harmony.png")
 #  NoLegend()
 #Idents(seurat) <- seurat$Annotation_garnett
 
+# save top 10 genes per clusters
+
+if (ncol(seurat) > 5000) {
+  sample_cells <- sample(x = colnames(seurat), size = 5000, replace = FALSE)
+  seurat_sampled <- seurat[, sample_cells]
+}
+
+seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = .25)
+write.table(seurat.markers, "temp/DEtop10_seuratClusters.tsv", sep = "\t")
 
 # Plot cell makers
 
 cell.markers <- readxl::read_excel(cellMarker_file)
-p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters") + coord_flip() + NoLegend()
+p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip() + NoLegend()
+WriteXLS(x = list("annotation" = data_frame("seurat_cluster" = ggplot_build(p)$layout$panel_params[[1]]$x$breaks, "abbreviation" = "Fill in")), ExcelFileName = "annotation.xls")
 ggsave(plot = p0, filename = "temp/Dotplot_seuratClusters.png", dpi = 100, height = 12, width = 12)
 p1 <- AugmentPlot(DimPlot(seurat, group.by = "seurat_clusters", label = TRUE, label.size = 12))
 cell.markers <- cell.markers[cell.markers$gene %in% rownames(seurat), ]
 for (type in unique(cell.markers$category)) {
   p2 <- FeaturePlot(seurat, features = cell.markers[cell.markers$category == type, ]$gene, pt.size = .1)
-  p3 <- VlnPlot(seurat, features = cell.markers[cell.markers$category == type, ]$gene, pt.size = .1, group.by = "seurat_clusters")
-  p <- (p1 | p2) / p3
+  p <- p1 + plot_spacer() / p2
   ggsave(plot = p, filename = paste0("temp/", type, ".png"), height = 20, width = 20, dpi = 100)
 }
 

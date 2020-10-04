@@ -28,8 +28,10 @@ Prints cell_id, gene_id, checks if metadata is correctly linked, checks normaliz
 
 #### 2. Test scProcessor to put desired QC thresholds and check batch variable
 
+- [BATCH]: fill in part or full name of batch variable(s) e.g. "patient|sample|plate"
+
 ``` 
-Rscript scProcessor_test.R
+Rscript scProcessor_test.R [BATCH]
 ```
 
 Saves QC and elbowplot in temp/

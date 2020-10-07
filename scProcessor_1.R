@@ -10,8 +10,7 @@ features_var = 2000 #Amount of variable features to select
 cluster_resolution = c(1) #At which resolutions to cluster the data
 object_path = "temp/raw.rds" #_raw.rds file
 cellMarker_file = "/gpfs01/home/glanl/scripts/IMMUcan/TME_markerGenes.xlsx"
-#garnett_classifier = "/gpfs01/bhcbio/projects/research_studies/20190920_IMMUCan_Public_data/Garnett_train_datasets/NSCLC_Unbiased_Lambrechts/NSCLC_ALL_10X_garnettTrain_garnett_classifier.rds" #path of garnett classifier
-
+chetah_classifier = "/gpfs01/home/glanl/scripts/IMMUcan/CHETAH_TME_reference.Rdata"
 
 # Make and set directories
 dir <- getwd()
@@ -22,6 +21,8 @@ ifelse(!dir.exists("out"), dir.create("out"), FALSE)
 
 # Load packages and set environment
 library(Seurat)
+library(SingleCellExperiment)
+library(CHETAH)
 library(harmony)
 library(ggplot2)
 library(patchwork)
@@ -95,7 +96,7 @@ p4 <- AugmentPlot(VlnPlot(object = seurat, features = "harmony_1", group.by = ba
 
 seurat <- seurat %>% 
   RunUMAP(reduction = "harmony", dims = 1:pca_dims, a = .5, b = 1.2, verbose = TRUE) %>%
-  RunTSNE(reduction = "harmony", dims = 1:pca_dims, check_duplicates = FALSE)  %>%
+  RunTSNE(reduction = "harmony", dims = 1:pca_dims, check_duplicates = FALSE)  #%>%
   FindNeighbors(reduction = "harmony", dims = 1:pca_dims, verbose = TRUE) %>% 
   FindClusters(resolution = cluster_resolution, verbose = TRUE) %>% 
   identity()
@@ -109,38 +110,48 @@ ggsave(plot = p, filename = "out/Harmony.png")
 
 # Supervised annotation
 
-#fdata <- data.frame("gene_short_name" = rownames(seurat[["RNA"]]@counts))
-#rownames(fdata) <- fdata$gene_short_name
-#pdata <- seurat@meta.data
-#pdata$garnett_cluster <- pdata$seurat_clusters
-#cds <- newCellDataSet(as(seurat[["RNA"]]@counts, "dgCMatrix"), phenoData = new("AnnotatedDataFrame", data = pdata), featureData = new("AnnotatedDataFrame", data = fdata)) %>%
-#  estimateSizeFactors(cds)
-#cds_classifier <- readRDS(garnett_classifier) #Read Garnett classifier
-#cds <- classify_cells(cds, cds_classifier, db = org.Hs.eg.db, cluster_extend = TRUE, cds_gene_id_type = "SYMBOL")
-#seurat$Annotation_garnett <- pData(cds)$cluster_ext_type
-#seurat$Annotation_garnett <- gsub("Unknown", NA, seurat$Annotation_garnett)
-#print(AugmentPlot(DimPlot(seurat, reduction = "umap", pt.size = .1, group.by = "Annotation_garnett", label = TRUE) + 
-#                    ggthemes::scale_color_tableau(palette = "Tableau 20") +
-#                    ggsave(paste0("annotation_garnett.png"))))
-#DimPlot(seurat, group.by = "Annotation_garnett", split.by = "Annotation_garnett", ncol = 4, pt.size = .1) + 
-#  ggthemes::scale_color_tableau(palette = "Tableau 20") + 
-#  NoLegend()
-#Idents(seurat) <- seurat$Annotation_garnett
+load(chetah_classifier)
+input <- SingleCellExperiment(assays = list(counts = seurat[["RNA"]]@data),
+                              reducedDims = SimpleList(TSNE = seurat@reductions$umap@cell.embeddings))
+input <- CHETAHclassifier(input = input, ref_cells = reference, n_genes = 500)
+p1 <- PlotCHETAH(input, return = TRUE) 
+nodes <- c("Node1" = "Immune", "Node2" = "Lymphoid", "Node3" = "Lymphoid", "Node4" = "NKT", "Node5" = "T", "Node6" = "T", "Node7" = "Myeloid", "Node8" = "Macro/DC", "Node9"= "Stromal", "Node10" = "Fibroblast")
+input$celltype_CHETAH <- plyr::revalue(input$celltype_CHETAH, replace = nodes[names(nodes) %in% input$celltype_CHETAH])
+seurat@meta.data$annotation_CHETAH <- input$celltype_CHETAH
+p2 <- DimPlot(seurat, group.by = "annotation_CHETAH", split.by = "annotation_CHETAH", ncol = 10) + ggthemes::scale_color_tableau(palette = "Tableau 20") + NoLegend()
+layout <- "
+  A
+  B
+  B
+  "
+p <- p1 + p2 + plot_layout(design = layout)
+ggsave(plot = p, filename = "out/CHETAH_classification.pdf", height = 12, width = 12)
 
-# save top 10 genes per clusters
+# Split object
+#Tcells <- c("T", "CD4 T cell", "CD8 T cell", "NK", "NKT", "reg. T cell")
+#Myeloid <- c("Myeloid", "Macro/DC", "Macrophage", "Dendritic")
+#seurat_T <- seurat[, seurat$annotation_CHETAH %in% Tcells]
+#seurat_myeloid <- seurat[, seurat$annotation_CHETAH %in% Myeloid]
+#seurat_T <- seurat_T %>% 
+#  FindVariableFeatures(selection.method = "vst", nfeatures = 2000, verbose=TRUE) %>% 
+#  ScaleData(verbose = TRUE) %>% 
+#  RunPCA(npcs = 30, verbose = TRUE) %>%
+#  RunUMAP(reduction = "harmony", dims = 1:10, a = .5, b = 1.2, verbose = TRUE) %>%
+#  #RunTSNE(reduction = "harmony", dims = 1:pca_dims, check_duplicates = FALSE)  #%>%
+#  FindNeighbors(reduction = "harmony", dims = 1:10, verbose = TRUE) %>% 
+#  FindClusters(resolution = 0.8, verbose = TRUE) %>% 
+#  identity()
 
-if (ncol(seurat) > 5000) {
-  sample_cells <- sample(x = colnames(seurat), size = 5000, replace = FALSE)
-  seurat_sampled <- seurat[, sample_cells]
-} else {
-  seurat_sampled <- seurat
-}
-seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = .25)
-write.table(seurat.markers, "temp/DEtop10_seuratClusters.tsv", sep = "\t")
-
-# Plot cell makers
+# Plot cell markers
 
 cell.markers <- readxl::read_excel(cellMarker_file)
+#markers <- list()
+#for (i in as.character(na.omit(unique(cell.markers$cell_type)))) {
+#    markers[i] <- na.omit(cell.markers[cell.markers$cell_type == i, "gene"])
+#}
+#temp <- AddModuleScore(seurat, features = markers)
+#p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster", colnames(temp@meta.data))]) + scale_x_discrete(labels = names(markers)) + RotatedAxis()
+
 p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip() + NoLegend()
 WriteXLS(x = list("annotation" = tibble("seurat_cluster" = ggplot_build(p0)$layout$panel_params[[1]]$x$breaks, "abbreviation" = "Fill in")), ExcelFileName = "temp/annotation.xls")
 ggsave(plot = p0, filename = "temp/Dotplot_seuratClusters.png", dpi = 100, height = 12, width = 12)

@@ -6,39 +6,53 @@ Processing scripts for scRNA-seq database
 
 - Follow install instructions for sceasy (https://github.com/cellgeni/sceasy)
 - Install following R packages
+- Get CHETAH_reference_updatedAnnotation.RData from IMMUcan teams channel
 ```
 install.packages(c("Seurat", "Harmony", "tidyverse", "readxl", "patchwork", "devtools"))
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("CHETAH")
 devtools::install_github("mahmoudibrahim/genesorteR") 
 ```
 
 ## Run scProcessor
-Start from a seurat object that is named raw.rds
-
-Run the following scProcessor steps **(FILL SQUARED BRACKETS)**
+- Start from a seurat object
+- Run the following steps 
+- scProcessor creates two folders: temp/ and out/
+- **(FILL SQUARED BRACKETS)**
 
 #### 1. Check Seurat object with check_seurat.R
 
+Input:
 - [SEURAT]: path to seurat object
 
 ``` 
 Rscript check_seurat.R [SEURAT] 
 ```
 
-Prints cell_id, gene_id, checks if metadata is correctly linked, checks normalization and stores it in data.rds and prints meta.data
+Output:
+- Prints cell_id, gene_id
+- Checks if metadata is correctly linked
+- Checks normalization: raw or normalized (stores it in data.rds)
+- Prints meta.data slot
 
 #### 2. Test scProcessor to put desired QC thresholds and check batch variable
 
+Input:
 - [BATCH]: fill in part or full name of batch variable(s) e.g. "patient|sample|plate"
 
 ``` 
 Rscript scProcessor_test.R [BATCH]
 ```
 
-Saves QC and elbowplot in temp/
+Output:
+- QC plot and elbowplot in temp/
 
 #### 3. Run scProcessor_1
 
 Bayer only: `bash scProcessor_1.sh` with slurm if on an HPC (adapt vars in bash file)
+
+Input:
 - [BATCH]: FULL name of the batch column in the metadata (often patient or sample)
 - [FEATURES]: minimum amount of detected genes per cell allowed
 - [MITO]: maximum percentage of mitochondrial reads per cell allowed
@@ -48,7 +62,20 @@ Bayer only: `bash scProcessor_1.sh` with slurm if on an HPC (adapt vars in bash 
 Rscript scProcessor_1.R [BATCH] [FEATURES] [MITO] [PCA]
 ```
 
-Does QC, integration, dimensionality reduction, clustering and outputs marker gene plots in temp/
+Steps:
+- QC
+- Integration
+- Dimensionality reduction + clustering
+- Supervised classification
+
+Output:
+- QC plot in out/
+- Integration plot in out/
+- Supervised classification in out/
+- Seurat clustering + gene modules in temp/
+- Comparison seurat clusters and supervised classification in temp/
+- harmony.rds in temp/
+- annotation.xls in out/
 
 #### 4. Annotate data
 
@@ -56,7 +83,7 @@ Does QC, integration, dimensionality reduction, clustering and outputs marker ge
   - marker gene plots
   - dotplot
   - top10 diffentially expressed genes per seurat cluster
-- In annotation.xls, fill in cell types as defined in cell_ontology.xlsx in the abbreviation column
+- In out/annotation.xls, fill in cell types as defined in cell_ontology.xlsx in the abbreviation column
 
 
 #### 5. Run scProcessor_2
@@ -66,5 +93,13 @@ Bayer only: `bash scProcessor_2.sh` with slurm if on an HPC (adapt vars in bash 
 ```
 Rscript scProcessor_2.R
 ```
+Steps:
+- Links annotation to seurat_clusters
+- Includes cell ontology
+- Differential expression
 
-Links annotation to seurat_clusters, includes cell ontology, performs differential expression, creates output files
+Output: 
+- AverageExpression matrices and DE_results per annotation level in out/
+- Metadata.tsv in out/
+- cellCount.tsv in out/
+- cellxgene.h5ad in out

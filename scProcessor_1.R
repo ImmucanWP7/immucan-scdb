@@ -10,7 +10,7 @@ features_var = 2000 #Amount of variable features to select
 cluster_resolution = c(1) #At which resolutions to cluster the data
 object_path = "temp/raw.rds" #_raw.rds file
 cellMarker_file = "/gpfs01/home/glanl/scripts/IMMUcan/TME_markerGenes.xlsx"
-chetah_classifier = "/gpfs01/home/glanl/scripts/IMMUcan/CHETAH_TME_reference.Rdata"
+chetah_classifier = "/gpfs01/home/glanl/scripts/IMMUcan/CHETAH_reference_updatedAnnotation.RData"
 
 # Make and set directories
 dir <- getwd()
@@ -114,10 +114,10 @@ ggsave(plot = p, filename = "out/Harmony.png")
 load(chetah_classifier)
 input <- SingleCellExperiment(assays = list(counts = seurat[["RNA"]]@data),
                               reducedDims = SimpleList(TSNE = seurat@reductions$umap@cell.embeddings))
-input <- CHETAHclassifier(input = input, ref_cells = reference, n_genes = 500)
-colors = c("B cell")
+input <- CHETAHclassifier(input = input, ref_cells = reference, n_genes = 500, thresh = 0.05)
+
 p1 <- PlotCHETAH(input, return = TRUE) 
-nodes <- c("Node1" = "Immune", "Node2" = "Lymphoid", "Node3" = "Lymphoid", "Node4" = "NKT", "Node5" = "T", "Node6" = "T", "Node7" = "Myeloid", "Node8" = "Macro/DC", "Node9"= "Stromal", "Node10" = "Fibroblast")
+nodes <- c("Node1" = "Immune", "Node2" = "Immune", "Node3" = "Lymphoid", "Node4" = "Lymphoid", "Node5" = "NKT", "Node6" = "T", "Node7" = "T", "Node8" = "Myeloid", "Node9" = "Macro/DC", "Node10"= "Stromal", "Node11" = "Stromal")
 input$celltype_CHETAH <- plyr::revalue(input$celltype_CHETAH, replace = nodes[names(nodes) %in% input$celltype_CHETAH])
 seurat@meta.data$annotation_CHETAH <- input$celltype_CHETAH
 #p2 <- DimPlot(seurat, group.by = "annotation_CHETAH", split.by = "annotation_CHETAH", ncol = 10) + ggthemes::scale_color_tableau(palette = "Tableau 20") + NoLegend()
@@ -147,16 +147,16 @@ ggsave(plot = p1, filename = "out/CHETAH_classification.pdf", height = 6, width 
 # Plot cell markers
 
 cell.markers <- readxl::read_excel(cellMarker_file)
-#markers <- list()
-#for (i in as.character(na.omit(unique(cell.markers$cell_type)))) {
-#    markers[i] <- na.omit(cell.markers[cell.markers$cell_type == i, "gene"])
-#}
-#temp <- AddModuleScore(seurat, features = markers)
-#p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster", colnames(temp@meta.data))]) + scale_x_discrete(labels = names(markers)) + RotatedAxis()
-
+markers <- list()
+for (i in as.character(na.omit(unique(cell.markers$cell_type)))) {
+    markers[i] <- na.omit(cell.markers[cell.markers$cell_type == i, "gene"])
+}
+temp <- AddModuleScore(seurat, features = markers)
+p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster", colnames(temp@meta.data))]) + scale_x_discrete(labels = names(markers)) + RotatedAxis()
+ggsave(plot = p, filename = "temp/Dotplot_seuratClusters_geneModules.png", dpi = 100, height = 12, width = 12)
 p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip() + NoLegend()
-WriteXLS(x = list("annotation" = tibble("seurat_cluster" = ggplot_build(p0)$layout$panel_params[[1]]$x$breaks, "abbreviation" = "Fill in")), ExcelFileName = "temp/annotation.xls")
-ggsave(plot = p0, filename = "temp/Dotplot_seuratClusters.png", dpi = 100, height = 12, width = 12)
+WriteXLS(x = list("annotation" = tibble("seurat_cluster" = ggplot_build(p0)$layout$panel_params[[1]]$x$breaks, "abbreviation" = "Fill in")), ExcelFileName = "out/annotation.xls")
+ggsave(plot = p0, filename = "temp/Dotplot_seuratClusters_genes.png", dpi = 100, height = 12, width = 12)
 p1 <- AugmentPlot(DimPlot(seurat, group.by = "seurat_clusters", label = TRUE, label.size = 12))
 cell.markers <- cell.markers[cell.markers$gene %in% rownames(seurat), ]
 for (type in unique(cell.markers$category)) {
@@ -173,7 +173,7 @@ for (type in unique(cell.markers$category)) {
 
 temp <- table(seurat$seurat_clusters, seurat$annotation_CHETAH)
 temp <- apply(temp, 1, function(x) x / sum(x))
-pheatmap::pheatmap(temp, filename = "cluster_comparison.pdf")
+pheatmap::pheatmap(temp, filename = "temp/cluster_comparison.pdf")
 
 # Summary statistics
 

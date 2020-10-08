@@ -74,7 +74,6 @@ Output:
 - Supervised classification in out/
 - Seurat clustering + gene modules in temp/
 - Comparison seurat clusters and supervised classification in temp/
-- harmony.rds in temp/
 - annotation.xls in out/
 
 ### 4. Annotate clusters
@@ -102,4 +101,4 @@ Output:
 - AverageExpression matrices and DE_results per annotation level in out/
 - Metadata.tsv in out/
 - cellCount.tsv in out/
-- cellxgene.h5ad in out
+- cellxgene.h5ad in out/

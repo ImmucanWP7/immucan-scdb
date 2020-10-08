@@ -3,6 +3,7 @@ args = commandArgs(trailingOnly=TRUE)
 object_path = "temp/harmony.rds" #harmony.rds file
 annotationFile_path = "out/annotation.xls" #path to annotation file
 cellOntology_path = "/gpfs01/home/glanl/scripts/IMMUcan/cell_ontology.xlsx"
+annotation <- c("annotation_CHETAH", "annotation_major", "annotation_immune", "annotation_minor")
 meta_cols_umap = c("age", "patient", "biopsy", "tissue", "sample", "seurat_clusters", "annotation_authors", "nCount_RNA", "nFeature_RNA", "annotation_major", "annotation_immune", "annotation_minor")
 meta_cols_barplot = c("patient", "biopsy", "tissue", "treatment", "treatment_prior", "treatment_response", "treatment_timepoint", "disease_stage")
 
@@ -11,12 +12,15 @@ library(reticulate)
 use_condaenv('sceasy')
 loompy <- reticulate::import('loompy')
 library(Seurat)
-#library(SeuratDisk)
+library(SeuratDisk)
 library(ggplot2)
 library(patchwork)
 library(Matrix)
 library(dplyr)
 library(genesorteR)
+library(data.table)
+RNGkind(sample.kind = "Rounding")
+set.seed(111)
 dir <- getwd()
 setwd(dir)
 seurat <- readRDS(object_path)
@@ -47,7 +51,10 @@ seurat@meta.data <- seurat@meta.data %>%
   tibble::rownames_to_column("cell") %>%
   left_join(cell_ont, by = "abbreviation") %>%
   tibble::column_to_rownames("cell")
-Idents(seurat) <- seurat$cell_ontology
+if (any(is.na(seurat$cell_ontology)) == TRUE) {
+  print("WARNING: Not all cell type abbreviations fit")
+} 
+Idents(seurat) <- seurat$seurat_clusters
 
 
 # Plotting
@@ -75,24 +82,26 @@ for (i in temp) {
 
 # DE
 
-if (ncol(seurat) > 25000) {
-  sample_cells <- sample(x = colnames(seurat), size = 25000, replace = FALSE)
+if (ncol(seurat) > 10000) {
+  sample_cells <- sample(x = colnames(seurat), size = 10000, replace = FALSE)
   seurat_sampled <- seurat[, sample_cells]
 } else {
   seurat_sampled <- seurat
 }
-seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25)
-write.table(seurat.markers, paste("out/DE_genes.tsv", sep = "_"), sep = "\t")
-
-seurat@meta.data %>%
-  group_by(cell_ontology) %>%
-  tally() %>%
-  write.csv(file = "out/cell_count.csv", row.names = FALSE)
+annoCounts <- list()
+for (i in annotation) {
+  Idents(seurat_sampled) <- seurat[[i]]
+  seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25)
+  write.table(seurat.markers, paste0("out/DE_", i, ".tsv"), sep = "\t")
+  temp <- table(seurat[[i]])
+  annoCounts[[i]] <- data.frame(annotation = i, cell_type = temp)
+  write.csv(data.table::rbindlist(annoCounts), file = "out/cell_count.csv", row.names = FALSE)
+}
 
 
 # Gene entropy ranking
 
-geneIndex <- makeReference(seuratObj = seurat, groupBy = "cell_ontology")
+geneIndex <- makeReference(seuratObj = seurat, groupBy = "seurat_clusters")
 write.table(geneIndex, "out/gene_index.tsv", row.names = TRUE, sep = "\t")
 
 
@@ -100,8 +109,8 @@ write.table(geneIndex, "out/gene_index.tsv", row.names = TRUE, sep = "\t")
 
 #Seurat
 saveRDS(seurat, "out/harmony.rds")
-#SaveH5Seurat(seurat, filename = paste(gsub("_raw.rds", "", object_path), "harmony.h5Seurat", sep = "_"), overwrite = TRUE)
-#Convert(paste(gsub("_raw.rds", "", object_path), "harmony.h5Seurat", sep = "_"), dest = "h5ad", overwrite = TRUE)
+SaveH5Seurat(seurat, filename = paste(gsub("_raw.rds", "", object_path), "harmony.h5Seurat", sep = "_"), overwrite = TRUE)
+Convert(paste(gsub("_raw.rds", "", object_path), "harmony.h5Seurat", sep = "_"), dest = "h5ad", overwrite = TRUE)
 
 # Export average gene expression over cluster
 #write.csv(x = seurat[["RNA"]]@data, file = "out/normCounts.csv", row.names = TRUE)

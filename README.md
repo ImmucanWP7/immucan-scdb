@@ -21,7 +21,7 @@ devtools::install_github("mahmoudibrahim/genesorteR")
 - scProcessor creates two folders: temp/ and out/
 - **FILL SQUARED BRACKETS**
 
-### 1. Check Seurat object with check_seurat.R
+### 1. Check Seurat object
 
 Input:
 - [SEURAT]: path to seurat object
@@ -36,7 +36,7 @@ Output:
 - Checks normalization: raw or normalized (stores it in data.rds)
 - Prints meta.data slot
 
-### 2. Test scProcessor to put desired QC thresholds and check batch variable
+### 2. Select desired QC thresholds and batch variable
 
 Input:
 - [BATCH]: fill in part or full name of batch variable(s) e.g. "patient|sample|plate"
@@ -48,7 +48,7 @@ Rscript scProcessor_test.R [BATCH]
 Output:
 - QC plot and elbowplot in temp/
 
-### 3. Run scProcessor_1
+### 3. scProcessor_1
 
 Bayer only: `bash scProcessor_1.sh` with slurm if on an HPC (adapt vars in bash file)
 
@@ -77,7 +77,7 @@ Output:
 - harmony.rds in temp/
 - annotation.xls in out/
 
-### 4. Annotate data
+### 4. Annotate clusters
 
 - Check plots in temp/:
   - marker gene plots
@@ -86,7 +86,7 @@ Output:
 - In out/annotation.xls, fill in cell types as defined in cell_ontology.xlsx in the abbreviation column
 
 
-### 5. Run scProcessor_2
+### 5. scProcessor_2
 
 Bayer only: `bash scProcessor_2.sh` with slurm if on an HPC (adapt vars in bash file)
 

@@ -30,6 +30,7 @@ library(Matrix)
 library(dplyr)
 library(WriteXLS)
 library(pheatmap)
+RNGkind(sample.kind = "Rounding")
 set.seed(111)
 
 # Recreate seurat object
@@ -120,13 +121,6 @@ p1 <- PlotCHETAH(input, return = TRUE)
 nodes <- c("Node1" = "Immune", "Node2" = "Immune", "Node3" = "Lymphoid", "Node4" = "Lymphoid", "Node5" = "NKT", "Node6" = "T", "Node7" = "T", "Node8" = "Myeloid", "Node9" = "Macro/DC", "Node10"= "Stromal", "Node11" = "Stromal")
 input$celltype_CHETAH <- plyr::revalue(input$celltype_CHETAH, replace = nodes[names(nodes) %in% input$celltype_CHETAH])
 seurat@meta.data$annotation_CHETAH <- input$celltype_CHETAH
-#p2 <- DimPlot(seurat, group.by = "annotation_CHETAH", split.by = "annotation_CHETAH", ncol = 10) + ggthemes::scale_color_tableau(palette = "Tableau 20") + NoLegend()
-#layout <- "
-#  A
-#  B
-#  B
-#  "
-#p <- p1 + p2 + plot_layout(design = layout)
 ggsave(plot = p1, filename = "out/CHETAH_classification.pdf", height = 6, width = 12)
 
 # Split object
@@ -152,16 +146,16 @@ for (i in as.character(na.omit(unique(cell.markers$cell_type)))) {
     markers[i] <- na.omit(cell.markers[cell.markers$cell_type == i, "gene"])
 }
 temp <- AddModuleScore(seurat, features = markers)
-p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster", colnames(temp@meta.data))]) + scale_x_discrete(labels = names(markers)) + RotatedAxis()
+p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster", colnames(temp@meta.data))], cluster.idents = TRUE) + scale_x_discrete(labels = names(markers)) + RotatedAxis()
 ggsave(plot = p, filename = "temp/Dotplot_seuratClusters_geneModules.png", dpi = 100, height = 12, width = 12)
 p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip() + NoLegend()
-WriteXLS(x = list("annotation" = tibble("seurat_cluster" = ggplot_build(p0)$layout$panel_params[[1]]$x$breaks, "abbreviation" = "Fill in")), ExcelFileName = "out/annotation.xls")
+WriteXLS(x = list("annotation" = tibble("seurat_clusters" = 1:length(unique(seurat$seurat_clusters)), "abbreviation" = "Fill in")), ExcelFileName = "out/annotation.xls")
 ggsave(plot = p0, filename = "temp/Dotplot_seuratClusters_genes.png", dpi = 100, height = 12, width = 12)
 p1 <- AugmentPlot(DimPlot(seurat, group.by = "seurat_clusters", label = TRUE, label.size = 12))
 cell.markers <- cell.markers[cell.markers$gene %in% rownames(seurat), ]
 for (type in unique(cell.markers$category)) {
-  p2 <- FeaturePlot(seurat, features = cell.markers[cell.markers$category == type, ]$gene, pt.size = .1)
-  p3 <- DotPlot(seurat, features = cell.markers[cell.markers$category == type, ]$gene, group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip() + NoLegend()
+  p2 <- FeaturePlot(seurat, features = unique(cell.markers[cell.markers$category == type, ]$gene), pt.size = .1)
+  p3 <- DotPlot(seurat, features = unique(cell.markers[cell.markers$category == type, ]$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip() + NoLegend()
   layout <- "
   ACC
   BBB
@@ -191,11 +185,6 @@ harmony_summary = data.frame(
 )
 seurat@misc <- list(harmony_summary)
 write.csv(x = harmony_summary, file = "out/harmony_summary.csv", row.names = FALSE)
-
-#seurat@meta.data %>%
-#  group_by(Annotation_garnett) %>%
-#  tally() %>%
-#  write.csv(temp, file = "garnett_count.csv", row.names = FALSE)
 
 # Save RDS and convert to h5ad with searatdisk
 

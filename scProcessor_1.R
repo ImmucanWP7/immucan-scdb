@@ -29,6 +29,7 @@ library(patchwork)
 library(Matrix)
 library(dplyr)
 library(WriteXLS)
+library(pheatmap)
 set.seed(111)
 
 # Recreate seurat object
@@ -96,7 +97,7 @@ p4 <- AugmentPlot(VlnPlot(object = seurat, features = "harmony_1", group.by = ba
 
 seurat <- seurat %>% 
   RunUMAP(reduction = "harmony", dims = 1:pca_dims, a = .5, b = 1.2, verbose = TRUE) %>%
-  RunTSNE(reduction = "harmony", dims = 1:pca_dims, check_duplicates = FALSE)  #%>%
+  RunTSNE(reduction = "harmony", dims = 1:pca_dims, check_duplicates = FALSE)  %>%
   FindNeighbors(reduction = "harmony", dims = 1:pca_dims, verbose = TRUE) %>% 
   FindClusters(resolution = cluster_resolution, verbose = TRUE) %>% 
   identity()
@@ -114,18 +115,19 @@ load(chetah_classifier)
 input <- SingleCellExperiment(assays = list(counts = seurat[["RNA"]]@data),
                               reducedDims = SimpleList(TSNE = seurat@reductions$umap@cell.embeddings))
 input <- CHETAHclassifier(input = input, ref_cells = reference, n_genes = 500)
+colors = c("B cell")
 p1 <- PlotCHETAH(input, return = TRUE) 
 nodes <- c("Node1" = "Immune", "Node2" = "Lymphoid", "Node3" = "Lymphoid", "Node4" = "NKT", "Node5" = "T", "Node6" = "T", "Node7" = "Myeloid", "Node8" = "Macro/DC", "Node9"= "Stromal", "Node10" = "Fibroblast")
 input$celltype_CHETAH <- plyr::revalue(input$celltype_CHETAH, replace = nodes[names(nodes) %in% input$celltype_CHETAH])
 seurat@meta.data$annotation_CHETAH <- input$celltype_CHETAH
-p2 <- DimPlot(seurat, group.by = "annotation_CHETAH", split.by = "annotation_CHETAH", ncol = 10) + ggthemes::scale_color_tableau(palette = "Tableau 20") + NoLegend()
-layout <- "
-  A
-  B
-  B
-  "
-p <- p1 + p2 + plot_layout(design = layout)
-ggsave(plot = p, filename = "out/CHETAH_classification.pdf", height = 12, width = 12)
+#p2 <- DimPlot(seurat, group.by = "annotation_CHETAH", split.by = "annotation_CHETAH", ncol = 10) + ggthemes::scale_color_tableau(palette = "Tableau 20") + NoLegend()
+#layout <- "
+#  A
+#  B
+#  B
+#  "
+#p <- p1 + p2 + plot_layout(design = layout)
+ggsave(plot = p1, filename = "out/CHETAH_classification.pdf", height = 6, width = 12)
 
 # Split object
 #Tcells <- c("T", "CD4 T cell", "CD8 T cell", "NK", "NKT", "reg. T cell")
@@ -169,6 +171,9 @@ for (type in unique(cell.markers$category)) {
   ggsave(plot = p, filename = paste0("temp/", type, ".png"), height = 20, width = 20, dpi = 100)
 }
 
+temp <- table(seurat$seurat_clusters, seurat$annotation_CHETAH)
+temp <- apply(temp, 1, function(x) x / sum(x))
+pheatmap::pheatmap(temp, filename = "cluster_comparison.pdf")
 
 # Summary statistics
 

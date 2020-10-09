@@ -8,12 +8,21 @@ Processing scripts for scRNA-seq database
 - Install following R packages
 - Get CHETAH_reference_updatedAnnotation.RData from IMMUcan teams channel
 ```
-install.packages(c("Seurat", "Harmony", "tidyverse", "readxl", "patchwork", "devtools"))
-if (!requireNamespace("BiocManager", quietly = TRUE))
-    install.packages("BiocManager")
-BiocManager::install("CHETAH")
+install.packages(c("Seurat", "tidyverse", "readxl", "patchwork", "devtools", "data.table", "BiocManager", "remotes", "WriteXLS", "pheatmap", "plyr"))
+BiocManager::install(c("CHETAH", "SingleCellExperiment"))
 devtools::install_github("mahmoudibrahim/genesorteR") 
+devtools::install_github("immunogenomics/harmony")
+remotes::install_github("mojaveazure/seurat-disk")
 ```
+
+## Before starting
+
+Change the paths to files provided in the script
+- scProcessor_1.R
+ - cellMarker_path = PATH to TME_markerGenes.xlsx
+ - chetahClassifier_path = PATH to CHETAH_reference_updatedAnnotation.RData
+- scProcessor_2.R
+ - cellOntology_path = PATH to cell_ontology.xlsx
 
 ## Run scProcessor
 - Start from a seurat object

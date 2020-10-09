@@ -5,21 +5,27 @@ Processing scripts for scRNA-seq database
 ## Install instructions
 
 - Follow install instructions for sceasy (https://github.com/cellgeni/sceasy)
-- Install following R packages
 - Get CHETAH_reference_updatedAnnotation.RData from IMMUcan teams channel
+- Install following R packages
 ```
-install.packages(c("Seurat", "Harmony", "tidyverse", "readxl", "patchwork", "devtools"))
-if (!requireNamespace("BiocManager", quietly = TRUE))
-    install.packages("BiocManager")
-BiocManager::install("CHETAH")
+install.packages(c("Seurat", "tidyverse", "readxl", "patchwork", "devtools", "data.table", "BiocManager", "remotes", "WriteXLS", "pheatmap", "plyr"))
+BiocManager::install(c("CHETAH", "SingleCellExperiment"))
 devtools::install_github("mahmoudibrahim/genesorteR") 
+devtools::install_github("immunogenomics/harmony")
+remotes::install_github("mojaveazure/seurat-disk")
 ```
+
+## Before starting
+
+Change the paths to files provided in the script
+- cellMarker_path = PATH to TME_markerGenes.xlsx
+- chetahClassifier_path = PATH to CHETAH_reference_updatedAnnotation.RData
+- cellOntology_path = PATH to cell_ontology.xlsx
 
 ## Run scProcessor
 - Start from a seurat object
-- Run the following steps 
-- scProcessor creates two folders: temp/ and out/
-- **FILL SQUARED BRACKETS**
+- scProcessor creates two folders where it stores files: temp/ and out/
+- **FILL IN THE SQUARED BRACKETS**
 
 ### 1. Check Seurat object
 

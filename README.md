@@ -15,6 +15,11 @@ devtools::install_github("immunogenomics/harmony")
 remotes::install_github("mojaveazure/seurat-disk")
 ```
 
+On terminal
+```
+git clone https://github.com/soumelis-lab/IMMUcan.git
+```
+
 ## Before starting
 
 Change the paths to files provided in the script

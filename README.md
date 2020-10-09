@@ -25,7 +25,7 @@ Change the paths to files provided in the script
 ## Run scProcessor
 - Start from a seurat object
 - scProcessor creates two folders where it stores files: temp/ and out/
-- **FILL SQUARED BRACKETS**
+- **FILL IN THE SQUARED BRACKETS**
 
 ### 1. Check Seurat object
 

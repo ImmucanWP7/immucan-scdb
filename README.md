@@ -18,11 +18,9 @@ remotes::install_github("mojaveazure/seurat-disk")
 ## Before starting
 
 Change the paths to files provided in the script
-- scProcessor_1.R
- - cellMarker_path = PATH to TME_markerGenes.xlsx
- - chetahClassifier_path = PATH to CHETAH_reference_updatedAnnotation.RData
-- scProcessor_2.R
- - cellOntology_path = PATH to cell_ontology.xlsx
+- cellMarker_path = PATH to TME_markerGenes.xlsx
+- chetahClassifier_path = PATH to CHETAH_reference_updatedAnnotation.RData
+- cellOntology_path = PATH to cell_ontology.xlsx
 
 ## Run scProcessor
 - Start from a seurat object

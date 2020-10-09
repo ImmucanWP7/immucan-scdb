@@ -5,8 +5,8 @@ Processing scripts for scRNA-seq database
 ## Install instructions
 
 - Follow install instructions for sceasy (https://github.com/cellgeni/sceasy)
-- Install following R packages
 - Get CHETAH_reference_updatedAnnotation.RData from IMMUcan teams channel
+- Install following R packages
 ```
 install.packages(c("Seurat", "tidyverse", "readxl", "patchwork", "devtools", "data.table", "BiocManager", "remotes", "WriteXLS", "pheatmap", "plyr"))
 BiocManager::install(c("CHETAH", "SingleCellExperiment"))

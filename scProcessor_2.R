@@ -123,6 +123,10 @@ write.table(x = temp$RNA, file = "out/avgExpr_immune.tsv", row.names = TRUE, sep
 Idents(seurat) <- seurat$annotation_minor
 temp <- AverageExpression(seurat, assays = "RNA")
 write.table(x = temp$RNA, file = "out/avgExpr_minor.tsv", row.names = TRUE, sep = "\t")
+Idents(seurat) <- seurat$annotation_CHETAH
+temp <- AverageExpression(seurat, assays = "RNA")
+write.table(x = temp$RNA, file = "out/avgExpr_CHETAH.tsv", row.names = TRUE, sep = "\t")
+
 # Export metadata with umap coordinates
 write.table(x = cbind(seurat@meta.data, seurat@reductions$umap@cell.embeddings), file = "out/metadata.tsv", row.names = TRUE, sep = "\t")
 

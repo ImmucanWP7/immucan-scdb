@@ -9,8 +9,8 @@ data = "temp/data.rds" #If data is already normalized or not, stored by check_se
 features_var = 2000 #Amount of variable features to select
 cluster_resolution = c(1) #At which resolutions to cluster the data
 object_path = "temp/raw.rds" #_raw.rds file
-cellMarker_file = "/gpfs01/home/glanl/scripts/IMMUcan/TME_markerGenes.xlsx"
-chetah_classifier = "/gpfs01/home/glanl/scripts/IMMUcan/CHETAH_reference_updatedAnnotation.RData"
+cellMarker_path = "/gpfs01/home/glanl/scripts/IMMUcan/TME_markerGenes.xlsx"
+chetahClassifier_path = "/gpfs01/home/glanl/scripts/IMMUcan/CHETAH_reference_updatedAnnotation.RData"
 
 # Make and set directories
 dir <- getwd()
@@ -112,7 +112,7 @@ ggsave(plot = p, filename = "out/Harmony.png")
 
 # Supervised annotation
 
-load(chetah_classifier)
+load(chetahClassifier_path)
 input <- SingleCellExperiment(assays = list(counts = seurat[["RNA"]]@data),
                               reducedDims = SimpleList(TSNE = seurat@reductions$umap@cell.embeddings))
 input <- CHETAHclassifier(input = input, ref_cells = reference, n_genes = 500, thresh = 0.05)
@@ -140,7 +140,7 @@ ggsave(plot = p1, filename = "out/CHETAH_classification.pdf", height = 6, width 
 
 # Plot cell markers
 
-cell.markers <- readxl::read_excel(cellMarker_file)
+cell.markers <- readxl::read_excel(cellMarker_path)
 markers <- list()
 for (i in as.character(na.omit(unique(cell.markers$cell_type)))) {
     markers[i] <- na.omit(cell.markers[cell.markers$cell_type == i, "gene"])

@@ -4,7 +4,7 @@ object_path = "temp/harmony.rds" #harmony.rds file
 annotationFile_path = "out/annotation.xls" #path to annotation file
 cellOntology_path = "/gpfs01/home/glanl/scripts/IMMUcan/cell_ontology.xlsx"
 annotation <- c("annotation_CHETAH", "annotation_major", "annotation_immune", "annotation_minor")
-meta_cols_umap = c("age", "patient", "biopsy", "tissue", "sample", "seurat_clusters", "annotation_authors", "nCount_RNA", "nFeature_RNA", "annotation_major", "annotation_immune", "annotation_minor")
+meta_cols_umap = c("age", "patient", "biopsy", "tissue", "sample", "seurat_clusters", "annotation_authors", "nCount_RNA", "nFeature_RNA", "annotation_major", "annotation_immune", "annotation_minor", "annotation_CHETAH")
 meta_cols_barplot = c("patient", "biopsy", "tissue", "treatment", "treatment_prior", "treatment_response", "treatment_timepoint", "disease_stage")
 
 library(sceasy)

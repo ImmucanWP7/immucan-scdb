@@ -143,13 +143,17 @@ ggsave(plot = p1, filename = "out/CHETAH_classification.pdf", height = 6, width 
 cell.markers <- readxl::read_excel(cellMarker_path)
 markers <- list()
 for (i in as.character(na.omit(unique(cell.markers$cell_type)))) {
-    markers[i] <- na.omit(cell.markers[cell.markers$cell_type == i, "gene"])
+    temp <- rownames(seurat)[rownames(seurat) %in% na.omit(cell.markers[cell.markers$cell_type == i, "gene"])]
+    if (length(temp) > 0) {
+      markers[i] <- temp
+    }
 }
+
 temp <- AddModuleScore(seurat, features = markers)
 p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster", colnames(temp@meta.data))], cluster.idents = TRUE) + scale_x_discrete(labels = names(markers)) + RotatedAxis()
 ggsave(plot = p, filename = "temp/Dotplot_seuratClusters_geneModules.png", dpi = 100, height = 12, width = 12)
 p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip() + NoLegend()
-WriteXLS(x = list("annotation" = tibble("seurat_clusters" = 1:length(unique(seurat$seurat_clusters)), "abbreviation" = "Fill in")), ExcelFileName = "out/annotation.xls")
+WriteXLS(x = list("annotation" = tibble("seurat_clusters" = 0:length(unique(seurat$seurat_clusters))-1, "abbreviation" = "Fill in")), ExcelFileName = "out/annotation.xls")
 ggsave(plot = p0, filename = "temp/Dotplot_seuratClusters_genes.png", dpi = 100, height = 12, width = 12)
 p1 <- AugmentPlot(DimPlot(seurat, group.by = "seurat_clusters", label = TRUE, label.size = 12))
 cell.markers <- cell.markers[cell.markers$gene %in% rownames(seurat), ]

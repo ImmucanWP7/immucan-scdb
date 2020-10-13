@@ -19,13 +19,14 @@ dir <- getwd()
 setwd(dir)
 ifelse(!dir.exists("temp"), dir.create("temp"), FALSE)
 ifelse(!dir.exists("out"), dir.create("out"), FALSE)
+print(batch)
 
 # QC
 
 seurat <- readRDS(object_path)
 data <- readRDS(data)
 seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^Mt\\.|^MT\\.|^mt\\.|^Mt-|^MT-|^mt-")
-batch <- tolower(batch)
+#batch <- tolower(batch)
 
 for (i in colnames(seurat@meta.data)[grepl(batch, colnames(seurat@meta.data))]) {
   p1 <- AugmentPlot(VlnPlot(seurat, features = "nFeature_RNA", pt.size = 0.1, group.by = i, log = TRUE)) + 

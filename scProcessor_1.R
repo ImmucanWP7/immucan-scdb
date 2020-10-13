@@ -1,10 +1,10 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)
-batch = args[1] #batch variable in the metadata slot
+batch = args[1] #batch variable in the metadata slot if no batch fill in empty string
 QC_feature_min = as.numeric(args[2]) #Minimal features threshold
 QC_mt_max = as.numeric(args[3]) #Maximum mitochondrial content threshold
 pca_dims = as.numeric(args[4]) #Amount of PCA dimensions to use
-
+integrate == TRUE
 data = "temp/data.rds" #If data is already normalized or not, stored by check_seurat.R
 features_var = 2000 #Amount of variable features to select
 cluster_resolution = c(1) #At which resolutions to cluster the data
@@ -17,7 +17,6 @@ dir <- getwd()
 setwd(dir)
 ifelse(!dir.exists("temp"), dir.create("temp"), FALSE)
 ifelse(!dir.exists("out"), dir.create("out"), FALSE)
-
 
 # Load packages and set environment
 library(Seurat)
@@ -37,6 +36,10 @@ set.seed(111)
 
 seurat <- readRDS(object_path)
 data <- readRDS(data)
+if (batch == "") {
+  batch = "orig.ident"
+  integrate = FALSE
+  }
 
 # QC
 
@@ -84,6 +87,7 @@ p0 <- AugmentPlot(DimPlot(seurat, reduction = "umap", group.by = batch, pt.size 
 
 # Harmony
 
+if (integrate == TRUE) {
 p1 <- AugmentPlot(DimPlot(object = seurat, reduction = "pca", pt.size = .1, group.by = batch) + NoLegend())
 p2 <- AugmentPlot(VlnPlot(object = seurat, features = "PC_1", group.by = batch, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
 
@@ -108,7 +112,14 @@ p5 <- AugmentPlot(DimPlot(seurat, reduction = "umap", group.by = batch, pt.size 
                     ggtitle("After harmony"))
 p <- (p0 | p5) / (p1 | p3) / (p2 | p4)
 ggsave(plot = p, filename = "out/Harmony.png")
-
+} else {
+  seurat <- seurat %>% 
+    RunUMAP(reduction = "pca", dims = 1:pca_dims, a = .5, b = 1.2, verbose = TRUE) %>%
+    RunTSNE(reduction = "pca", dims = 1:pca_dims, check_duplicates = FALSE)  %>%
+    FindNeighbors(reduction = "pca", dims = 1:pca_dims, verbose = TRUE) %>% 
+    FindClusters(resolution = cluster_resolution, verbose = TRUE) %>% 
+    identity()
+}
 
 # Supervised annotation
 
@@ -158,7 +169,7 @@ ggsave(plot = p0, filename = "temp/Dotplot_seuratClusters_genes.png", dpi = 100,
 p1 <- AugmentPlot(DimPlot(seurat, group.by = "seurat_clusters", label = TRUE, label.size = 12))
 cell.markers <- cell.markers[cell.markers$gene %in% rownames(seurat), ]
 for (type in unique(cell.markers$category)) {
-  p2 <- FeaturePlot(seurat, features = unique(cell.markers[cell.markers$category == type, ]$gene), pt.size = .1)
+  p2 <- FeaturePlot(seurat, features = unique(cell.markers[cell.markers$category == type, ]$gene), pt.size = .1, ncol = 5)
   p3 <- DotPlot(seurat, features = unique(cell.markers[cell.markers$category == type, ]$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip() + NoLegend()
   layout <- "
   ACC
@@ -190,7 +201,7 @@ harmony_summary = data.frame(
 seurat@misc <- list(harmony_summary)
 write.csv(x = harmony_summary, file = "out/harmony_summary.csv", row.names = FALSE)
 
-# Save RDS and convert to h5ad with searatdisk
+# Save RDS and convert to h5ad with seuratdisk
 
 saveRDS(seurat, paste0("temp/harmony.rds"))
 

@@ -1,9 +1,9 @@
 #!/bin/bash
 SCRIPT='/gpfs01/home/glanl/scripts/IMMUcan/scProcessor_1.R'
-BATCH='patient'
-GENES='250'
-MITO='15'
-PCA='20'
+BATCH='none' #Fill in
+GENES='250' #Adapt
+MITO='15' #Adapt
+PCA='30' #Adapt
 
 ml R/3.6.3-foss-2016b
 

@@ -4,7 +4,7 @@ batch = args[1] #batch variable in the metadata slot if no batch fill in empty s
 QC_feature_min = as.numeric(args[2]) #Minimal features threshold
 QC_mt_max = as.numeric(args[3]) #Maximum mitochondrial content threshold
 pca_dims = as.numeric(args[4]) #Amount of PCA dimensions to use
-integrate == TRUE
+integrate = TRUE
 data = "temp/data.rds" #If data is already normalized or not, stored by check_seurat.R
 features_var = 2000 #Amount of variable features to select
 cluster_resolution = c(1) #At which resolutions to cluster the data
@@ -36,7 +36,8 @@ set.seed(111)
 
 seurat <- readRDS(object_path)
 data <- readRDS(data)
-if (batch == "") {
+if (batch == "none") {
+  print("NO BATCH SPECIFIED => NO INTEGRATION")
   batch = "orig.ident"
   integrate = FALSE
   }
@@ -169,7 +170,7 @@ ggsave(plot = p0, filename = "temp/Dotplot_seuratClusters_genes.png", dpi = 100,
 p1 <- AugmentPlot(DimPlot(seurat, group.by = "seurat_clusters", label = TRUE, label.size = 12))
 cell.markers <- cell.markers[cell.markers$gene %in% rownames(seurat), ]
 for (type in unique(cell.markers$category)) {
-  p2 <- FeaturePlot(seurat, features = unique(cell.markers[cell.markers$category == type, ]$gene), pt.size = .1, ncol = 5)
+  p2 <- FeaturePlot(seurat, features = unique(cell.markers[cell.markers$category == type, ]$gene), pt.size = .1)
   p3 <- DotPlot(seurat, features = unique(cell.markers[cell.markers$category == type, ]$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip() + NoLegend()
   layout <- "
   ACC
@@ -177,7 +178,7 @@ for (type in unique(cell.markers$category)) {
   BBB
   "
   p <- p1 + p2 + p3 + plot_layout(design = layout)
-  ggsave(plot = p, filename = paste0("temp/", type, ".png"), height = 20, width = 20, dpi = 100)
+  ggsave(plot = p, filename = paste0("temp/", type, ".png"), height = 30, width = 20, dpi = 100)
 }
 
 temp <- table(seurat$seurat_clusters, seurat$annotation_CHETAH)

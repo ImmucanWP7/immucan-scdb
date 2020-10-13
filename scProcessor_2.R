@@ -87,8 +87,8 @@ for (i in temp) {
 
 # DE
 
-if (ncol(seurat) > 10000) {
-  sample_cells <- sample(x = colnames(seurat), size = 10000, replace = FALSE)
+if (ncol(seurat) > 20000) {
+  sample_cells <- sample(x = colnames(seurat), size = 20000, replace = FALSE)
   seurat_sampled <- seurat[, sample_cells]
 } else {
   seurat_sampled <- seurat
@@ -107,7 +107,9 @@ for (i in annotation) {
 # Gene entropy ranking
 geneIndex <- list()
 for (i in annotation) {
-  geneIndex[[i]] <- makeReference(seuratObj = seurat, groupBy = i)
+  if (length(unique(seurat@meta.data[[i]])) > 1) {
+    geneIndex[[i]] <- makeReference(seuratObj = seurat, groupBy = i)
+  }
 }
 geneIndex <- do.call(cbind, geneIndex)
 write.table(geneIndex, "out/gene_index.tsv", row.names = TRUE, sep = "\t")

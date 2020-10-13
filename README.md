@@ -64,7 +64,7 @@ Output:
 Bayer only: `bash scProcessor_1.sh` with slurm if on an HPC (adapt vars in bash file)
 
 Input:
-- [BATCH]: FULL name of the batch column in the metadata (often patient or sample)
+- [BATCH]: FULL name of the batch column in the metadata (often patient or sample), if no integration is desired use "none"
 - [FEATURES]: minimum amount of detected genes per cell allowed
 - [MITO]: maximum percentage of mitochondrial reads per cell allowed
 - [PCA]: number of PCA dimensions to use for downstream processing

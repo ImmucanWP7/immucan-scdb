@@ -56,6 +56,11 @@ if (any(is.na(seurat$cell_ontology)) == TRUE) {
 } 
 Idents(seurat) <- seurat$seurat_clusters
 
+# Remove annotations with less than 10 cells
+for (i in annotation) {
+  temp <- unique(seurat@meta.data[[i]])[table(seurat@meta.data[[i]]) <= 10]
+  seurat <- seurat[, !seurat@meta.data[[i]] %in% temp]
+}
 
 # Plotting
 
@@ -100,8 +105,11 @@ for (i in annotation) {
 
 
 # Gene entropy ranking
-
-geneIndex <- makeReference(seuratObj = seurat, groupBy = "seurat_clusters")
+geneIndex <- list()
+for (i in annotation) {
+  geneIndex[[i]] <- makeReference(seuratObj = seurat, groupBy = i)
+}
+geneIndex <- do.call(cbind, geneIndex)
 write.table(geneIndex, "out/gene_index.tsv", row.names = TRUE, sep = "\t")
 
 

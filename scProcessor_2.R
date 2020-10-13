@@ -3,7 +3,7 @@ args = commandArgs(trailingOnly=TRUE)
 object_path = "temp/harmony.rds" #harmony.rds file
 annotationFile_path = "out/annotation.xls" #path to annotation file
 cellOntology_path = "/gpfs01/home/glanl/scripts/IMMUcan/cell_ontology.xlsx"
-annotation <- c("annotation_CHETAH", "annotation_major", "annotation_immune", "annotation_minor")
+annotation <- c("annotation_CHETAH", "annotation_major", "annotation_immune", "annotation_minor", "seurat_clusters")
 meta_cols_umap = c("age", "patient", "biopsy", "tissue", "sample", "seurat_clusters", "annotation_authors", "nCount_RNA", "nFeature_RNA", "annotation_major", "annotation_immune", "annotation_minor", "annotation_CHETAH")
 meta_cols_barplot = c("patient", "biopsy", "tissue", "treatment", "treatment_prior", "treatment_response", "treatment_timepoint", "disease_stage")
 
@@ -58,7 +58,7 @@ Idents(seurat) <- seurat$seurat_clusters
 
 # Remove annotations with less than 10 cells
 for (i in annotation) {
-  temp <- unique(seurat@meta.data[[i]])[table(seurat@meta.data[[i]]) <= 10]
+  temp <- names(table(seurat@meta.data[[i]]))[table(seurat@meta.data[[i]]) <= 10]
   seurat <- seurat[, !seurat@meta.data[[i]] %in% temp]
 }
 

@@ -98,7 +98,6 @@ seurat <- seurat %>%
 p3 <- AugmentPlot(DimPlot(object = seurat, reduction = "harmony", pt.size = .1, group.by = batch) + NoLegend())
 p4 <- AugmentPlot(VlnPlot(object = seurat, features = "harmony_1", group.by = batch, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
 
-
 # Dimensionality reduction and clustering
 
 seurat <- seurat %>% 
@@ -155,14 +154,14 @@ ggsave(plot = p1, filename = "out/CHETAH_classification.pdf", height = 6, width 
 cell.markers <- readxl::read_excel(cellMarker_path)
 markers <- list()
 for (i in as.character(na.omit(unique(cell.markers$cell_type)))) {
-    temp <- rownames(seurat)[rownames(seurat) %in% na.omit(cell.markers[cell.markers$cell_type == i, "gene"])]
+    temp <- rownames(seurat)[rownames(seurat) %in% na.omit(cell.markers[cell.markers$cell_type == i, "gene", drop = TRUE])]
     if (length(temp) > 0) {
-      markers[i] <- temp
+      markers[[i]] <- temp
     }
 }
 
 temp <- AddModuleScore(seurat, features = markers)
-p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster", colnames(temp@meta.data))], cluster.idents = TRUE) + scale_x_discrete(labels = names(markers)) + RotatedAxis()
+p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster[[:digit:]]", colnames(temp@meta.data))], cluster.idents = TRUE) + scale_x_discrete(labels = names(markers)) + RotatedAxis()
 ggsave(plot = p, filename = "temp/Dotplot_seuratClusters_geneModules.png", dpi = 100, height = 12, width = 12)
 p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip() + NoLegend()
 WriteXLS(x = list("annotation" = tibble("seurat_clusters" = 0:(length(unique(seurat$seurat_clusters))-1), "abbreviation" = "Fill in")), ExcelFileName = "out/annotation.xls")

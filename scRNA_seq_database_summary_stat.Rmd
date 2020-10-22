@@ -1,0 +1,263 @@
+---
+title: "Global stats IMMUcan database"
+output: html_document
+---
+
+```{r, setup}
+knitr::opts_knit$set(root.dir = "/Users/jordicamps/OneDrive - Bayer/IMMUcan/WP7/D1 - scRNAseq database/")
+```
+
+
+```{r, root.dir = TRUE}
+library(dplyr)
+library(readxl)
+library(ggplot2)
+library(patchwork)
+library(stringr)
+library(tidyr)
+options(scipen = 999)
+```
+
+```{r}
+theme_jc_vert <- theme(panel.border = element_blank(), panel.grid.major.y = element_blank(), panel.grid.minor = element_blank(), axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_text(colour = "black"))
+theme_jc_hor <- theme(panel.border = element_blank(), panel.grid.major.x = element_blank(), panel.grid.minor = element_blank(), axis.line = element_blank(), axis.ticks = element_blank(), axis.text = element_text(colour = "black"))
+```
+
+```{r}
+ScaleDiscretePositionFunc <- ggproto(
+  "ScaleDiscretePositionReversed", ScaleDiscretePosition,
+  get_limits = function(self) {
+    if (self$is_empty()) {
+      c(0, 1)
+    } else if (is.null(self$limits)) {
+      self$range$range
+    } else if (is.function(self$limits)) {
+      self$limits(self$range$range)
+    } else {
+      integer(0)
+    }
+  }
+)
+
+scale_x_discrete2 <- function(..., expand = waiver(), position = "bottom") {
+  sc <- discrete_scale(c("x", "xmin", "xmax", "xend"), "position_d", identity, ...,
+                       expand = expand, guide = "none", position = position, super = ScaleDiscretePositionFunc)
+  
+  sc$range_c <- ggplot2:::continuous_range()
+  sc
+}
+```
+
+```{r}
+df <- read_excel("15052020_scRNAseq_database.xlsx", n_max = 75)
+df
+```
+
+```{r}
+df$`Cancer localization` <- tolower(df$`Cancer localization`)
+df$`Library construction` <- tolower(df$`Library construction`)
+df$cells_tenfive <- df$`Cell amount` / 100000
+```
+
+```{r fig.height=4, fig.width=5}
+tech <- df %>%
+  group_by(`Library construction`) %>%
+  summarise("n_patient" = sum(`Number of Patients`, na.rm=TRUE), "n_cells" = sum(cells_tenfive, na.rm=TRUE), "n" = n()) %>%
+  ggplot(aes(x = reorder(`Library construction`, -n_patient), y = n_patient)) +
+  geom_segment(aes(xend = `Library construction`, yend = 0)) +
+  geom_point(aes(col = n_cells, size = n)) +
+  scale_size_continuous(range = c(2, 8))
+```
+
+```{r}
+tech_vert <- tech +
+  coord_flip() +
+  scale_y_continuous("Patients") + 
+  scale_x_discrete("Technology", limits = rev) +
+  scale_color_continuous(type = "viridis") +
+  labs(size="Datasets", color="Cells per\n100 000") +
+  guides(color = guide_colorbar(barwidth = 1, barheight = 3, ticks = FALSE)) +
+  theme_bw() +
+  theme(legend.position = "right", axis.title.y = element_blank(), plot.title = element_text(hjust=0.5)) +
+  theme_jc_vert +
+  ggtitle("Technology")
+tech_vert
+```
+
+```{r}
+tech_hor <- tech +
+  scale_y_continuous("Patients", limits = c(0, 400)) + 
+  scale_x_discrete("Technology") +
+  scale_color_continuous(type = "viridis") +
+  labs(size="Datasets", color="Cells per\n100 000") +
+  guides(color = guide_colorbar(barwidth = .5, barheight = 3, ticks = FALSE, direction = "vertical", title.position = "left"),
+         size = guide_legend(ncol = 1)) +
+  theme_bw() +
+  theme(legend.position = "bottom", axis.title.x = element_blank(), plot.title = element_text(hjust=0.5), axis.text.x = element_text(angle = 45, hjust = 1), legend.title = element_text(size = 8), legend.text = element_text(size = 8)) +
+  theme_jc_hor +
+  ggtitle("Technology")
+tech_hor
+```
+
+
+```{r fig.height=3, fig.width=5}
+treat <- df %>%
+  group_by(`Treatment type`) %>%
+  #tally(name = "Count") %>%
+  summarise("n_patient" = sum(`Number of Patients`, na.rm=TRUE), "n_cells" = sum(cells_tenfive, na.rm=TRUE), "n" = n()) %>%
+  ggplot(aes(x = reorder(`Treatment type`, -n_patient), y = n_patient)) +
+  geom_segment(aes(xend = `Treatment type`, yend = 0)) +
+  geom_point(aes(col = n_cells, size = n)) +
+  scale_size_continuous(range = c(2, 8))
+```
+
+```{r}
+treat_vert <- treat +
+  coord_flip() +
+  scale_y_continuous("Patients") + 
+  scale_x_discrete("Treatment type", limits = rev) +
+  scale_color_continuous(type = "viridis") +
+  labs(size="Datasets", color="Cells per\n100 000") +
+  guides(color = guide_colorbar(barwidth = 1, barheight = 3, ticks = FALSE)) +
+  theme_bw() +
+  theme(legend.position = "right", axis.title.y = element_blank(), plot.title = element_text(hjust = 0.5)) +
+  ggtitle("Treatment") +
+  theme_jc_vert
+treat_vert
+```
+
+```{r}
+treat_hor <- treat +
+  scale_y_continuous("Patients", limits = c(0, 400)) + 
+  scale_x_discrete("Treatment type") +
+  scale_color_continuous(type = "viridis") +
+  labs(size="Datasets", color="Cells per\n100 000") +
+  guides(color = guide_colorbar(barwidth = .5, barheight = 3, ticks = FALSE, direction = "vertical", title.position = "left"),
+         size = guide_legend(ncol = 1)) +
+  theme_bw() +
+  theme(legend.position = "bottom", axis.title.x = element_blank(), plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle = 45, hjust = 1), legend.title = element_text(size = 8), legend.text = element_text(size = 8)) +
+  ggtitle("Treatment") +
+  theme_jc_hor
+treat_hor
+```
+
+
+```{r}
+cancer <- df %>%
+  group_by(`Cancer type abbreviation`) %>%
+  summarise("n_patient" = sum(`Number of Patients`, na.rm=TRUE), "n_cells" = sum(cells_tenfive, na.rm=TRUE), "n" = n()) %>%
+  ggplot(aes(x = reorder(`Cancer type abbreviation`, -n_patient), y = n_patient)) +
+  geom_segment(aes(xend = `Cancer type abbreviation`, yend = 0)) +
+  geom_point(aes(col=n_cells, size=n)) +
+  scale_size_continuous(range = c(2, 8))
+```
+
+```{r}
+cancer_vert <- cancer +
+  coord_flip() +
+  scale_y_continuous("Patients") +
+  scale_x_discrete("Cancer type", limits = rev) +
+  viridis::scale_color_viridis(option = "viridis") +
+  #scale_size(breaks = c(3, 6, 9)) +
+  theme_bw() +
+  labs(size="Datasets", color="Cells per\n100 000") +
+  guides(color = guide_colorbar(barwidth = 1, barheight = 5, ticks = FALSE)) +
+  theme_jc_vert +
+  theme(axis.title.y = element_blank(), legend.position = "right", plot.title = element_text(hjust = 0.5)) +
+  ggtitle("Cancer type")
+cancer_vert
+```
+
+```{r fig.height=4.5, fig.width=9}
+cancer_hor <- cancer +
+  scale_y_continuous("Patients") +
+  scale_x_discrete("Cancer type") +
+  viridis::scale_color_viridis(option = "viridis") +
+  #scale_size(breaks = c(3, 6, 9)) +
+  theme_bw() +
+  labs(size="Datasets", color="Cells per\n100 000") +
+  guides(color = guide_colorbar(barwidth = 1, barheight = 5, ticks = FALSE)) +
+  theme_jc_hor +
+  theme(axis.title.y = element_blank(), legend.position = "right", plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 45, hjust = 1), axis.title.x = element_blank())
+  #ggtitle("Cancer type")
+cancer_hor
+ggsave("plot_cancer_horizontal.pdf", dpi = 300)
+```
+
+
+```{r fig.height=4, fig.width=8}
+cell_type <- df %>%
+  group_by(`Enrichment cell types`) %>%
+  summarise("n_patient" = sum(`Number of Patients`, na.rm=TRUE), "n_cells" = sum(cells_tenfive, na.rm=TRUE), "n" = n()) %>%
+  ggplot(aes(x = reorder(`Enrichment cell types`, -n_patient), y = n_patient)) +
+  geom_segment(aes(xend = `Enrichment cell types`, yend = 0)) +
+  geom_point(aes(col = n_cells, size = n)) +
+  scale_size_continuous(range = c(2, 8))
+```
+
+```{r}
+cell_type_vert <- cell_type +  
+  coord_flip() +
+  scale_y_continuous("Patients") + 
+  scale_x_discrete("Cell types", limits = rev) +
+  scale_color_continuous(type = "viridis") +
+  labs(size="Datasets", color="Cells per\n100 000") +
+  guides(color = guide_colorbar(barwidth = 1, barheight = 5, ticks = FALSE)) +
+  theme_bw() +
+  theme(axis.title.y = element_blank(), plot.title = element_text(hjust = 0.5)) +
+  theme_jc_vert +
+  ggtitle("Cell type enrichment")
+cell_type_vert
+```
+
+```{r}
+cell_type_hor <- cell_type +
+  scale_y_continuous("Patients", limits = c(0, 400)) + 
+  scale_x_discrete("Cell types") +
+  scale_color_continuous(type = "viridis") +
+  labs(size="Datasets", color="Cells") +
+  guides(color = guide_colorbar(barwidth = .5, barheight = 3, ticks = FALSE, direction = "vertical", title.position = "left"),
+         size = guide_legend(ncol = 1)) +
+  theme_bw() +
+  theme(axis.title.x = element_blank(), plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "bottom", legend.title = element_text(size = 8), legend.text = element_text(size = 8)) +
+  theme_jc_hor +
+  ggtitle("Cell type enrichment")
+cell_type_hor
+```
+
+## Plots patchwork
+```{r}
+layout <- "
+AABBDD
+AABBDD
+AACCDD
+"
+```
+
+```{r fig.height=6, fig.width=12}
+cancer_vert + cell_type_vert + treat_vert + tech_vert +
+  plot_layout(design = layout)
+ggsave("TME_table_quant.pdf", dpi = 300)
+```
+
+#Plots Jasna
+```{r}
+layout <- "
+AABCC
+"
+```
+
+```{r fig.height=5, fig.width=10}
+cell_type_hor + treat_hor + tech_hor +
+  plot_layout(design = layout)
+ggsave("plot_cellType_treatment_tech_horizontal.pdf", dpi = 300)
+```
+
+
+
+```{r}
+sum(df$`Number of Patients`, na.rm = TRUE)
+sum(df$`Cell amount`, na.rm = TRUE)
+```
+

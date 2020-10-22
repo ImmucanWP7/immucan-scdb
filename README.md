@@ -111,3 +111,13 @@ Output:
 - Metadata.tsv in out/
 - cellCount.tsv in out/
 - cellxgene.h5ad in out/
+
+### 6. Create checksum file to send to SIB
+
+on the terminal
+```
+cp out [DATASET_ID]_-_`md5sum /etc/group | awk -F" " '{print $1}'`
+zip -r [DATASET_ID_-_checksum].zip [DATASET_ID_-_checksum
+```
+
+Login to SIB through sftp and transfer

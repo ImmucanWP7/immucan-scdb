@@ -40,7 +40,7 @@ makeReference = function(seuratObj, groupBy) {
 # Annotate
 
 anno_clust <- readxl::read_excel(annotationFile_path)
-anno_clust <- arrange(anno_clust, seurat_clusters)
+#anno_clust <- arrange(anno_clust, seurat_clusters)
 new.cluster.ids <- tolower(anno_clust$abbreviation)
 names(new.cluster.ids) <- levels(seurat)
 seurat <- RenameIdents(seurat, new.cluster.ids)
@@ -95,7 +95,7 @@ if (ncol(seurat) > 20000) {
 }
 annoCounts <- list()
 for (i in annotation) {
-  Idents(seurat_sampled) <- seurat[[i]]
+  Idents(seurat_sampled) <- seurat_sampled[[i, drop = TRUE]]
   seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25)
   write.table(seurat.markers, paste0("out/DE_", i, ".tsv"), sep = "\t")
   temp <- table(seurat[[i]])

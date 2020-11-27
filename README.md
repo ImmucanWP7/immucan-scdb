@@ -15,7 +15,7 @@ devtools::install_github("immunogenomics/harmony")
 remotes::install_github("mojaveazure/seurat-disk")
 ```
 
-On terminal
+Clone this repository
 ```
 git clone https://github.com/soumelis-lab/IMMUcan.git
 ```
@@ -75,16 +75,13 @@ Rscript scProcessor_1.R [BATCH] [FEATURES] [MITO] [PCA]
 
 Steps:
 - QC
-- Integration
+- Batch integration
 - Dimensionality reduction + clustering
 - Supervised classification
 
 Output:
-- QC plot in out/
-- Integration plot in out/
-- Supervised classification in out/
-- Seurat clustering + gene modules in temp/
-- Comparison seurat clusters and supervised classification in temp/
+- Plots on QC, integration and supervised classification in out/
+- Seurat clustering, markers gene plots and comparison seurat/supervised in temp/
 - annotation.xls in out/
 
 ### 4. Annotate clusters
@@ -92,7 +89,6 @@ Output:
 - Check plots in temp/:
   - marker gene plots
   - dotplot
-  - top10 diffentially expressed genes per seurat cluster
 - In out/annotation.xls, fill in cell types as defined in cell_ontology.xlsx in the abbreviation column
 
 
@@ -107,9 +103,21 @@ Steps:
 - Links annotation to seurat_clusters
 - Includes cell ontology
 - Differential expression
+- Creates output files for SIB scRNAseq interface
 
 Output: 
 - AverageExpression matrices and DE_results per annotation level in out/
+- geneIndex.tsv
 - Metadata.tsv in out/
 - cellCount.tsv in out/
 - cellxgene.h5ad in out/
+
+### 6. Create checksum file to send to SIB
+
+on the terminal
+```
+cp out [DATASET_ID]_-_`md5sum /etc/group | awk -F" " '{print $1}'`
+zip -r [DATASET_ID_-_checksum].zip [DATASET_ID_-_checksum]
+```
+
+Login to SIB through sftp and transfer

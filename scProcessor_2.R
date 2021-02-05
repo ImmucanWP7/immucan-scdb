@@ -39,6 +39,7 @@ makeReference = function(seuratObj, groupBy) {
 
 # Annotate
 
+print("STEP 1: LINKING ANNOTATION.XLS")
 anno_clust <- readxl::read_excel(annotationFile_path)
 #anno_clust <- arrange(anno_clust, seurat_clusters)
 new.cluster.ids <- tolower(anno_clust$abbreviation)
@@ -80,13 +81,13 @@ for (i in temp) {
 
 temp <- colnames(seurat@meta.data)[tolower(colnames(seurat@meta.data)) %in% tolower(meta_cols_barplot)]
 for (i in temp) {
-    p <- ggplot(seurat@meta.data, aes_string(x = "cell_ontology", fill = i)) + geom_bar(position = "fill") + RotatedAxis()
-    ggsave(plot = p, filename = paste0("out/", i, ".png"), dpi = 300, width = 7, height = 6)
+  p <- ggplot(seurat@meta.data, aes_string(x = "cell_ontology", fill = i)) + geom_bar(position = "fill") + RotatedAxis()
+  ggsave(plot = p, filename = paste0("out/", i, ".png"), dpi = 300, width = 7, height = 6)
 }
 
 
 # DE
-
+print("STEP 2: CALCULATING MARKER GENES")
 if (ncol(seurat) > 20000) {
   sample_cells <- sample(x = colnames(seurat), size = 20000, replace = FALSE)
   seurat_sampled <- seurat[, sample_cells]
@@ -103,8 +104,8 @@ for (i in annotation) {
   write.csv(data.table::rbindlist(annoCounts), file = "out/cell_count.csv", row.names = FALSE)
 }
 
-
 # Gene entropy ranking
+print("STEO 3: CALCULATING GENE ENTROPY RANKING")
 geneIndex <- list()
 for (i in annotation) {
   if (length(unique(seurat@meta.data[[i]])) > 1) {
@@ -116,7 +117,7 @@ write.table(geneIndex, "out/gene_index.tsv", row.names = TRUE, sep = "\t")
 
 
 # Export
-
+print("STEP 4: SAVING RESULTS")
 #Seurat
 saveRDS(seurat, "out/harmony.rds")
 SaveH5Seurat(seurat, filename = paste(gsub("_raw.rds", "", object_path), "harmony.h5Seurat", sep = "_"), overwrite = TRUE)

@@ -1,10 +1,10 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)
 batch = args[1] #batch variable in the metadata slot if no batch fill in empty string
-QC_feature_min = as.numeric(args[2]) #Minimal features threshold
-QC_mt_max = as.numeric(args[3]) #Maximum mitochondrial content threshold
-pca_dims = as.numeric(args[4]) #Amount of PCA dimensions to use
-integrate = TRUE
+malignant = args[2] #boolean for malignant cells in the data
+QC_feature_min = 300 #Minimal features threshold
+QC_mt_max = 20 #Maximum mitochondrial content threshold
+pca_dims = 30 #Amount of PCA dimensions to use
 data = "temp/data.rds" #If data is already normalized or not, stored by check_seurat.R
 features_var = 2000 #Amount of variable features to select
 cluster_resolution = c(1) #At which resolutions to cluster the data
@@ -15,8 +15,8 @@ chetahClassifier_path = "/gpfs01/home/glanl/scripts/IMMUcan/CHETAH_reference_upd
 # Make and set directories
 dir <- getwd()
 setwd(dir)
-ifelse(!dir.exists("temp"), dir.create("temp"), FALSE)
-ifelse(!dir.exists("out"), dir.create("out"), FALSE)
+ifelse(!dir.exists("temp"), dir.create("temp"), "temp/ already exists")
+ifelse(!dir.exists("out"), dir.create("out"), "out/ already exists")
 
 # Load packages and set environment
 library(Seurat)
@@ -29,6 +29,8 @@ library(Matrix)
 library(dplyr)
 library(WriteXLS)
 library(pheatmap)
+library(DescTools)
+library(copykat)
 RNGkind(sample.kind = "Rounding")
 set.seed(111)
 
@@ -39,11 +41,11 @@ data <- readRDS(data)
 if (batch == "none") {
   print("NO BATCH SPECIFIED => NO INTEGRATION")
   batch = "orig.ident"
-  integrate = FALSE
-  }
+}
 
 # QC
 
+print("STEP 1: QC")
 cells_before_QC <- ncol(seurat)
 seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^Mt\\.|^MT\\.|^mt\\.|^Mt-|^MT-|^mt-")
 
@@ -66,16 +68,18 @@ p3 <- AugmentPlot(VlnPlot(seurat, features = "percent.mt", pt.size = 0.1, group.
 
 seurat <- subset(seurat, subset = nFeature_RNA > QC_feature_min & percent.mt < QC_mt_max)
 
-# Prepare
+# Entropy
 
+print("STEP 2: MEASURING BATCH EFFECT")
 if (data$norm == FALSE) {
   seurat <- Seurat::NormalizeData(seurat, verbose = TRUE)
 }
 seurat <- seurat %>% 
-  FindVariableFeatures(selection.method = "vst", nfeatures = features_var, verbose=TRUE) %>% 
+  FindVariableFeatures(selection.method = "vst", nfeatures = features_var, verbose = TRUE) %>% 
   ScaleData(verbose = TRUE) %>% 
   RunPCA(pc.genes = seurat@var.genes, npcs = pca_dims+20, verbose = TRUE) %>%
-  RunUMAP(dims = 1:pca_dims, a = .5, b = 1.2, verbose = TRUE)
+  RunUMAP(dims = 1:pca_dims, a = .5, b = 1.2, verbose = TRUE) %>%
+  FindNeighbors(dims = 1:2, k.param = 30, reduction = "umap", verbose = TRUE)
 
 p4 <- ElbowPlot(seurat, ndims = pca_dims+20) + geom_vline(xintercept = pca_dims, color = "red") + ylab("STDEV PCA") + theme(axis.title.x = element_blank())
 p <- p4 / p1 / p2 / p3
@@ -85,52 +89,77 @@ p0 <- AugmentPlot(DimPlot(seurat, reduction = "umap", group.by = batch, pt.size 
                     NoLegend() + 
                     ggtitle("Before harmony"))
 
+## Compute the percentage of batch in cell neighbors
+neighbors <- list()
+for (i in unique(seurat@meta.data[, batch])) {
+  temp <- rownames(seurat@meta.data[seurat@meta.data[ , batch] == i, ])
+  neighbors[[i]] <- rowSums(as.matrix(seurat@graphs$RNA_nn[, temp]))/30
+}
+neighbors <- as.data.frame(neighbors)
+
+## Compute entropy per cell
+entropy <- list()
+for (i in 1:nrow(neighbors)) {
+  entropy[[rownames(neighbors)[i]]] <- Entropy(neighbors[i, ])
+}
+entropy <- as.matrix(entropy)
+median_entropy <- median(as.numeric(entropy[,1]))
+
+entropy <- as.data.frame(entropy)
+p <- ggplot(entropy, aes(y = as.numeric(V1), x = 1)) +
+  geom_boxplot() +
+  scale_y_continuous("Entropy")
+ggsave(plot = p, filename = "out/entropy.png", width = 2, height = 4)
 
 # Harmony
 
-if (integrate == TRUE) {
-p1 <- AugmentPlot(DimPlot(object = seurat, reduction = "pca", pt.size = .1, group.by = batch) + NoLegend())
-p2 <- AugmentPlot(VlnPlot(object = seurat, features = "PC_1", group.by = batch, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
-
-seurat <- seurat %>% 
-  RunHarmony(batch, plot_convergence = FALSE)
-
-p3 <- AugmentPlot(DimPlot(object = seurat, reduction = "harmony", pt.size = .1, group.by = batch) + NoLegend())
-p4 <- AugmentPlot(VlnPlot(object = seurat, features = "harmony_1", group.by = batch, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
-
-# Dimensionality reduction and clustering
-
-seurat <- seurat %>% 
-  RunUMAP(reduction = "harmony", dims = 1:pca_dims, a = .5, b = 1.2, verbose = TRUE) %>%
-  RunTSNE(reduction = "harmony", dims = 1:pca_dims, check_duplicates = FALSE)  %>%
-  FindNeighbors(reduction = "harmony", dims = 1:pca_dims, verbose = TRUE) %>% 
-  FindClusters(resolution = cluster_resolution, verbose = TRUE) %>% 
-  identity()
-
-p5 <- AugmentPlot(DimPlot(seurat, reduction = "umap", group.by = batch, pt.size = .1) + 
-                    NoLegend() + 
-                    ggtitle("After harmony"))
-p <- (p0 | p5) / (p1 | p3) / (p2 | p4)
-ggsave(plot = p, filename = "out/Harmony.png")
-} else {
+if (median_entropy < 1) {
+  print("STEP 3: INTEGRATING BATCH")
+  p1 <- AugmentPlot(DimPlot(object = seurat, reduction = "pca", pt.size = .1, group.by = batch) + NoLegend())
+  p2 <- AugmentPlot(VlnPlot(object = seurat, features = "PC_1", group.by = batch, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
+  
   seurat <- seurat %>% 
-    RunUMAP(reduction = "pca", dims = 1:pca_dims, a = .5, b = 1.2, verbose = TRUE) %>%
+    RunHarmony(batch, plot_convergence = FALSE)
+  
+  p3 <- AugmentPlot(DimPlot(object = seurat, reduction = "harmony", pt.size = .1, group.by = batch) + NoLegend())
+  p4 <- AugmentPlot(VlnPlot(object = seurat, features = "harmony_1", group.by = batch, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
+  
+  # Dimensionality reduction and clustering
+  
+  print("STEP 4: CLUSTERING")
+  seurat <- seurat %>% 
+    RunUMAP(reduction = "harmony", dims = 1:pca_dims, a = .5, b = 1.2, verbose = FALSE) %>%
+    RunTSNE(reduction = "harmony", dims = 1:pca_dims, check_duplicates = FALSE)  %>%
+    FindNeighbors(reduction = "harmony", dims = 1:pca_dims, verbose = FALSE) %>% 
+    FindClusters(resolution = cluster_resolution, verbose = FALSE) %>% 
+    identity()
+  
+  p5 <- AugmentPlot(DimPlot(seurat, reduction = "umap", group.by = batch, pt.size = .1) + 
+                      NoLegend() + 
+                      ggtitle("After harmony"))
+  p <- (p0 | p5) / (p1 | p3) / (p2 | p4)
+  ggsave(plot = p, filename = "out/Harmony.png")
+} else {
+  print("STEP 4: CLUSTERING")
+  seurat <- seurat %>% 
+    RunUMAP(reduction = "pca", dims = 1:pca_dims, a = .5, b = 1.2, verbose = FALSE) %>%
     RunTSNE(reduction = "pca", dims = 1:pca_dims, check_duplicates = FALSE)  %>%
-    FindNeighbors(reduction = "pca", dims = 1:pca_dims, verbose = TRUE) %>% 
-    FindClusters(resolution = cluster_resolution, verbose = TRUE) %>% 
+    FindNeighbors(reduction = "pca", dims = 1:pca_dims, verbose = FALSE) %>% 
+    FindClusters(resolution = cluster_resolution, verbose = FALSE) %>% 
     identity()
 }
 
 # Supervised annotation
 
+print("STEP 5: SUPERVISED ANNOTATION")
 load(chetahClassifier_path)
 input <- SingleCellExperiment(assays = list(counts = seurat[["RNA"]]@data),
                               reducedDims = SimpleList(TSNE = seurat@reductions$umap@cell.embeddings))
 input <- CHETAHclassifier(input = input, ref_cells = reference, n_genes = 500, thresh = 0.05)
 
 p1 <- PlotCHETAH(input, return = TRUE) 
-nodes <- c("Node1" = "Immune", "Node2" = "Immune", "Node3" = "Lymphoid", "Node4" = "Lymphoid", "Node5" = "NKT", "Node6" = "T", "Node7" = "T", "Node8" = "Myeloid", "Node9" = "Macro/DC", "Node10"= "Stromal", "Node11" = "Stromal")
-input$celltype_CHETAH <- plyr::revalue(input$celltype_CHETAH, replace = nodes[names(nodes) %in% input$celltype_CHETAH])
+#nodes <- c("Node1" = "Immune", "Node2" = "Immune", "Node3" = "Lymphoid", "Node4" = "Lymphoid", "Node5" = "NKT", "Node6" = "T", "Node7" = "T", "Node8" = "Myeloid", "Node9" = "Macro/DC", "Node10"= "Stromal", "Node11" = "Stromal")
+#input$celltype_CHETAH <- plyr::revalue(input$celltype_CHETAH, replace = nodes[names(nodes) %in% input$celltype_CHETAH])
 seurat@meta.data$annotation_CHETAH <- input$celltype_CHETAH
 ggsave(plot = p1, filename = "out/CHETAH_classification.pdf", height = 6, width = 12)
 
@@ -149,22 +178,44 @@ ggsave(plot = p1, filename = "out/CHETAH_classification.pdf", height = 6, width 
 #  FindClusters(resolution = 0.8, verbose = TRUE) %>% 
 #  identity()
 
+# copyKat
+
+if (malignant == TRUE) {
+  print("STEP 6: CALLING COPY NUMBER ABBERATIONS")
+  counts <- as.matrix(seurat[["RNA"]]@counts)
+  normal_cells <- rownames(seurat@meta.data[seurat$annotation_CHETAH %in% c("CD8 T cell", "Macrophage"), ])
+  if (length(normal_cells) > 1) {
+    copykat.test <- copykat(rawmat=counts, id.type="S", ngene.chr=5, win.size=25, KS.cut=0.15, distance="euclidean", norm.cell.names=normal_cells, n.cores=4)
+  } else {
+    copykat.test <- copykat(rawmat=counts, id.type="S", ngene.chr=5, win.size=25, KS.cut=0.15, distance="euclidean", norm.cell.names="", n.cores=4)
+  }
+  pred.test <- data.frame(copykat.test$prediction)
+  seurat@meta.data <- merge(seurat@meta.data, pred.test[, "copykat.pred", drop = FALSE], by = "row.names", all = TRUE) %>% 
+    tibble::column_to_rownames("Row.names")
+  p1 <- DimPlot(seurat, group.by = "copykat.pred")
+  p2 <- FeaturePlot(seurat, features = "EPCAM")
+  p3 <- DimPlot(seurat, group.by = "seurat_clusters", label = TRUE) + NoLegend()
+  p <- p1 + p2 + p3
+  ggsave(plot = p, filename = "out/copyKat_umap.pdf", height = 5, width = 15)
+}
+
 # Plot cell markers
 
+print("STEP 7: CREATING MARKER GENE PLOTS")
 cell.markers <- readxl::read_excel(cellMarker_path)
 markers <- list()
 for (i in as.character(na.omit(unique(cell.markers$cell_type)))) {
-    temp <- rownames(seurat)[rownames(seurat) %in% na.omit(cell.markers[cell.markers$cell_type == i, "gene", drop = TRUE])]
-    if (length(temp) > 0) {
-      markers[[i]] <- temp
-    }
+  temp <- rownames(seurat)[rownames(seurat) %in% na.omit(cell.markers[cell.markers$cell_type == i, "gene", drop = TRUE])]
+  if (length(temp) > 0) {
+    markers[[i]] <- temp
+  }
 }
 
 temp <- AddModuleScore(seurat, features = markers)
 p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster[[:digit:]]", colnames(temp@meta.data))], cluster.idents = TRUE) + scale_x_discrete(labels = names(markers)) + RotatedAxis()
 ggsave(plot = p, filename = "temp/Dotplot_seuratClusters_geneModules.png", dpi = 100, height = 12, width = 12)
 p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip() + NoLegend()
-WriteXLS(x = list("annotation" = tibble("seurat_clusters" = 0:(length(unique(seurat$seurat_clusters))-1), "abbreviation" = "Fill in")), ExcelFileName = "out/annotation.xls")
+ifelse(!file.exists("out/annotation.xls"), WriteXLS(x = list("annotation" = tibble("seurat_clusters" = 0:(length(unique(seurat$seurat_clusters))-1), "abbreviation" = "Fill in")), ExcelFileName = "out/annotation.xls"), "annotation.xls already exists")
 ggsave(plot = p0, filename = "temp/Dotplot_seuratClusters_genes.png", dpi = 100, height = 12, width = 12)
 p1 <- AugmentPlot(DimPlot(seurat, group.by = "seurat_clusters", label = TRUE, label.size = 12))
 cell.markers <- cell.markers[cell.markers$gene %in% rownames(seurat), ]
@@ -186,6 +237,7 @@ pheatmap::pheatmap(temp, filename = "temp/cluster_comparison.pdf")
 
 # Summary statistics
 
+print("STEP 8: CREATING SUMMARY STATISTICS")
 harmony_summary = data.frame(
   "Input_file" = object_path,
   "Batch" = batch,
@@ -196,12 +248,14 @@ harmony_summary = data.frame(
   "Amount_genes" = nrow(seurat),
   "Genes_detected_per_cell" = median(seurat@meta.data$nFeature_RNA),
   "Cells_before_QC" = cells_before_QC,
-  "Cells_after_QC" = ncol(seurat)
+  "Cells_after_QC" = ncol(seurat),
+  "Entropy" = median_entropy
 )
 seurat@misc <- list(harmony_summary)
 write.csv(x = harmony_summary, file = "out/harmony_summary.csv", row.names = FALSE)
 
 # Save RDS and convert to h5ad with seuratdisk
 
+print("STEP 8: SAVING RESULTS")
 saveRDS(seurat, paste0("temp/harmony.rds"))
-
+print("ALL DONE")

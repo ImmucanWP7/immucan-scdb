@@ -69,6 +69,7 @@ Rscript scProcessor_1.R [BATCH] [MALIGNANT]
 
 Steps:
 - QC
+- Batch entropy measurement
 - Batch integration
 - Dimensionality reduction + clustering
 - Supervised classification
@@ -96,7 +97,7 @@ Rscript scProcessor_2.R
 ```
 Steps:
 - Links annotation to seurat_clusters
-- Includes cell ontology
+- Include cell ontology
 - Differential expression
 - Creates output files for SIB scRNAseq interface
 

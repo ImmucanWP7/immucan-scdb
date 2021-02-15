@@ -8,16 +8,12 @@ Processing scripts for scRNA-seq database
 - Get CHETAH_reference_updatedAnnotation.RData from IMMUcan teams channel
 - Install following R packages
 ```
-install.packages(c("Seurat", "tidyverse", "readxl", "patchwork", "devtools", "data.table", "BiocManager", "remotes", "WriteXLS", "pheatmap", "plyr"))
+install.packages(c("Seurat", "tidyverse", "readxl", "patchwork", "devtools", "data.table", "BiocManager", "remotes", "WriteXLS", "pheatmap", "plyr", "DescTools"))
 BiocManager::install(c("CHETAH", "SingleCellExperiment"))
 devtools::install_github("mahmoudibrahim/genesorteR") 
 devtools::install_github("immunogenomics/harmony")
+install_github("navinlabcode/copykat")
 remotes::install_github("mojaveazure/seurat-disk")
-```
-
-Clone this repository
-```
-git clone https://github.com/soumelis-lab/IMMUcan.git
 ```
 
 ## Before starting
@@ -65,19 +61,19 @@ Bayer only: `bash scProcessor_1.sh` with slurm if on an HPC (adapt vars in bash 
 
 Input:
 - [BATCH]: FULL name of the batch column in the metadata (often patient or sample), if no integration is desired use "none"
-- [FEATURES]: minimum amount of detected genes per cell allowed
-- [MITO]: maximum percentage of mitochondrial reads per cell allowed
-- [PCA]: number of PCA dimensions to use for downstream processing
+- [MALIGNANT]: boolean to address if copyKat has to be ran
 
 ```
-Rscript scProcessor_1.R [BATCH] [FEATURES] [MITO] [PCA]
+Rscript scProcessor_1.R [BATCH] [MALIGNANT]
 ```
 
 Steps:
 - QC
+- Batch entropy measurement
 - Batch integration
 - Dimensionality reduction + clustering
 - Supervised classification
+- CNA calling
 
 Output:
 - Plots on QC, integration and supervised classification in out/
@@ -101,7 +97,7 @@ Rscript scProcessor_2.R
 ```
 Steps:
 - Links annotation to seurat_clusters
-- Includes cell ontology
+- Include cell ontology
 - Differential expression
 - Creates output files for SIB scRNAseq interface
 

@@ -1,16 +1,16 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)
 batch = args[1] #batch variable in the metadata slot if no batch fill in empty string
-malignant = args[2] #boolean for malignant cells in the data
-QC_feature_min = 300 #Minimal features threshold
-QC_mt_max = 20 #Maximum mitochondrial content threshold
-pca_dims = 30 #Amount of PCA dimensions to use
+QC_feature_min = as.numeric(args[2]) #Minimal features threshold
+QC_mt_max = as.numeric(args[3]) #Maximum mitochondrial content threshold
+pca_dims = as.numeric(args[4]) #Amount of PCA dimensions to use
+malignant = args[5]
 data = "temp/data.rds" #If data is already normalized or not, stored by check_seurat.R
 features_var = 2000 #Amount of variable features to select
 cluster_resolution = c(1) #At which resolutions to cluster the data
 object_path = "temp/raw.rds" #_raw.rds file
-cellMarker_path = "/gpfs01/home/glanl/scripts/IMMUcan/TME_markerGenes.xlsx"
-chetahClassifier_path = "/gpfs01/home/glanl/scripts/IMMUcan/CHETAH_reference_updatedAnnotation.RData"
+cellMarker_path = "/home/jordi_camps/IMMUcan/TME_markerGenes.xlsx"
+chetahClassifier_path = "/home/jordi_camps/IMMUcan/CHETAH_reference_updatedAnnotation.RData"
 
 # Make and set directories
 dir <- getwd()
@@ -27,7 +27,7 @@ library(ggplot2)
 library(patchwork)
 library(Matrix)
 library(dplyr)
-library(WriteXLS)
+library(openxlsx)
 library(pheatmap)
 library(DescTools)
 library(copykat)
@@ -183,20 +183,24 @@ ggsave(plot = p1, filename = "out/CHETAH_classification.pdf", height = 6, width 
 if (malignant == TRUE) {
   print("STEP 6: CALLING COPY NUMBER ABBERATIONS")
   counts <- as.matrix(seurat[["RNA"]]@counts)
-  normal_cells <- rownames(seurat@meta.data[seurat$annotation_CHETAH %in% c("CD8 T cell", "Macrophage"), ])
-  if (length(normal_cells) > 1) {
-    copykat.test <- copykat(rawmat=counts, id.type="S", ngene.chr=5, win.size=25, KS.cut=0.15, distance="euclidean", norm.cell.names=normal_cells, n.cores=4)
-  } else {
-    copykat.test <- copykat(rawmat=counts, id.type="S", ngene.chr=5, win.size=25, KS.cut=0.15, distance="euclidean", norm.cell.names="", n.cores=4)
+  if (ncol(seurat) > 50000) {
+    samples <- sample(ncol(seurat), 50000, replace = FALSE)
+    seurat_sampled <- seurat[, samples]
+    normal_cells <- rownames(seurat_sampled@meta.data[seurat_sampled$annotation_CHETAH %in% c("CD8 T cell", "Macrophage"), ])
+    if (length(normal_cells) > 100) {
+      copykat.test <- copykat(rawmat=counts, id.type="S", ngene.chr=5, win.size=25, KS.cut=0.15, distance="euclidean", norm.cell.names=normal_cells, n.cores=4)
+    } else {
+      copykat.test <- copykat(rawmat=counts, id.type="S", ngene.chr=5, win.size=25, KS.cut=0.15, distance="euclidean", norm.cell.names="", n.cores=4)
+    }
+    pred.test <- data.frame(copykat.test$prediction)
+    seurat_sampled@meta.data <- merge(seurat_sampled@meta.data, pred.test[, "copykat.pred", drop = FALSE], by = "row.names", all = TRUE) %>% 
+      tibble::column_to_rownames("Row.names")
+    p1 <- DimPlot(seurat_sampled, group.by = "copykat.pred")
+    p2 <- FeaturePlot(seurat_sampled, features = "EPCAM")
+    p3 <- DimPlot(seurat_sampled, group.by = "seurat_clusters", label = TRUE) + NoLegend()
+    p <- p1 + p2 + p3
+    ggsave(plot = p, filename = "out/copyKat_umap.pdf", height = 5, width = 15)
   }
-  pred.test <- data.frame(copykat.test$prediction)
-  seurat@meta.data <- merge(seurat@meta.data, pred.test[, "copykat.pred", drop = FALSE], by = "row.names", all = TRUE) %>% 
-    tibble::column_to_rownames("Row.names")
-  p1 <- DimPlot(seurat, group.by = "copykat.pred")
-  p2 <- FeaturePlot(seurat, features = "EPCAM")
-  p3 <- DimPlot(seurat, group.by = "seurat_clusters", label = TRUE) + NoLegend()
-  p <- p1 + p2 + p3
-  ggsave(plot = p, filename = "out/copyKat_umap.pdf", height = 5, width = 15)
 }
 
 # Plot cell markers
@@ -215,7 +219,36 @@ temp <- AddModuleScore(seurat, features = markers)
 p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster[[:digit:]]", colnames(temp@meta.data))], cluster.idents = TRUE) + scale_x_discrete(labels = names(markers)) + RotatedAxis()
 ggsave(plot = p, filename = "temp/Dotplot_seuratClusters_geneModules.png", dpi = 100, height = 12, width = 12)
 p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip() + NoLegend()
-ifelse(!file.exists("out/annotation.xls"), WriteXLS(x = list("annotation" = tibble("seurat_clusters" = 0:(length(unique(seurat$seurat_clusters))-1), "abbreviation" = "Fill in")), ExcelFileName = "out/annotation.xls"), "annotation.xls already exists")
+
+##CHETAH recommendation
+fraction_chetah <- seurat@meta.data %>%
+  group_by(seurat_clusters, annotation_CHETAH) %>%
+  tally() %>%
+  mutate(fraction_CHETAH = n/sum(n)) %>%
+  select(-n) %>%
+  arrange(desc(fraction_CHETAH), .by_group = TRUE) %>%
+  slice_head(n = 1)
+
+##copykat recommendation
+fraction_copykat <- seurat@meta.data %>%
+  group_by(seurat_clusters, copykat.pred) %>%
+  tally() %>%
+  mutate(fraction_copykat = n/sum(n)) %>%
+  select(-n) %>%
+  arrange(desc(fraction_copykat), .by_group = TRUE) %>%
+  slice_head(n = 1)
+
+annotation <- inner_join(fraction_chetah, fraction_copykat, by = "seurat_clusters")
+annotation$abbreviation <- ""
+
+##Create annotation.xlsx
+if (!file.exists("out/annotation.xlsx")) {
+  write.xlsx(x = annotation, "out/annotation.xlsx")
+} else {
+  print("Not overwriting annotation.xlsx, saving as copy")
+  write.xlsx(x = annotation, "out/annotation_copy.xlsx")
+}
+
 ggsave(plot = p0, filename = "temp/Dotplot_seuratClusters_genes.png", dpi = 100, height = 12, width = 12)
 p1 <- AugmentPlot(DimPlot(seurat, group.by = "seurat_clusters", label = TRUE, label.size = 12))
 cell.markers <- cell.markers[cell.markers$gene %in% rownames(seurat), ]

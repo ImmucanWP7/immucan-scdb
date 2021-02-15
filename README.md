@@ -1,8 +1,7 @@
 # IMMUcan
 
-Processing of scRNAseq datasets
+scProcessor is used for the processing of scRNAseq datasets in the IMMUcan scDB. It runs on R and is mostly based on the Seurat package.
 
-Developed in R (based on Seurat)
 Features:
 - Quality control
 - Batch effect 

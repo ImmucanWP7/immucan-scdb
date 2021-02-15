@@ -1,6 +1,20 @@
 # IMMUcan
 
-Processing scripts for scRNA-seq database
+Processing of scRNAseq datasets
+
+Developed in R (based on Seurat)
+Features:
+- Quality control
+- Batch effect 
+  - Measure (entropy based)
+  - Correct (Harmony)
+- Dimensionality reduction + clustering
+- Supervised annotation (CHETAH)
+- CNA calling (copyKat)
+- Cell ontology (ebi.ac.uk/ols/ontologies/cl)
+- Differential expression
+- Universal output files (sceasy)
+
 
 ## Install instructions
 

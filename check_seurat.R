@@ -67,8 +67,9 @@ if (ncol(seurat) > 20000) {
 seurat_sampled <- subset(seurat_sampled, subset = nFeature_RNA > QC_feature_min & percent.mt < QC_mt_max)
 
 ## Select potential batch columns from meta.data
-batch <- seurat_sampled@meta.data[, sapply(seurat_sampled@meta.data, class) %in% c("character", "factor")]
-batch <- batch[, sapply(sapply(batch, unique), length) != 1]
+batch <- seurat_sampled@meta.data[, sapply(seurat_sampled@meta.data, class) %in% c("character", "factor")] #Select all columns that are factor or character
+batch <- batch[, sapply(sapply(batch, unique), length) != 1] #Remove all columns that have only one variable
+batch <- batch[, apply(batch, 2, function(x) !any(is.na(x)))] #Remove all columns with NAs
 
 ## Create nearest neighbour graph
 if (data$norm == FALSE) {

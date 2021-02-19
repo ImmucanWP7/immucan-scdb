@@ -33,7 +33,7 @@ suppressPackageStartupMessages({
 suppressWarnings(RNGkind(sample.kind = "Rounding"))
 set.seed(111)
 options(future.globals.maxSize= 150000*1024^2)
-plan("multiprocess", workers = 12)
+plan("multisession", workers = 4)
 
 # Recreate seurat object
 
@@ -72,60 +72,47 @@ if (data$batch != FALSE) {
   p3 <- AugmentPlot(DimPlot(object = seurat, reduction = "harmony", pt.size = .1, group.by = data$batch) + NoLegend())
   p4 <- AugmentPlot(VlnPlot(object = seurat, features = "harmony_1", group.by = data$batch, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
   
-  # Dimensionality reduction and clustering
-  
-print("STEP 2: CLUSTERING")
-seurat <- seurat %>% 
-  RunUMAP(reduction = "harmony", dims = 1:data$pca_dims, a = .5, b = 1.2, verbose = verbose) %>%
-  RunTSNE(reduction = "harmony", dims = 1:data$pca_dims, check_duplicates = FALSE)  %>%
-  FindNeighbors(reduction = "harmony", dims = 1:data$pca_dims, verbose = verbose) %>% 
-  FindClusters(resolution = data$cluster_resolution, verbose = verbose)
-  
-if (length(data$cluster_resolution) > 1) {
-  print("Defining optimal cluster resolution")
-  for (i in seq_along(data$cluster_resolution)) {
-    print(paste0("Checking resolution ", data$cluster_resolution[i]))
-    Idents(seurat) <- seurat[[paste0("RNA_snn_res.", data$cluster_resolution[i])]]
-    seurat.markers <- FindAllMarkers(seurat, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
-    seurat.markers.unique <- seurat.markers[!duplicated(seurat.markers$gene) & seurat.markers$p_val_adj < 0.05, ]
-    if (length(levels(seurat.markers$cluster)) != sum(table(seurat.markers.unique$cluster) > 20)) {
-      seurat$seurat_clusters <- seurat[[paste0("RNA_snn_res.", data$cluster_resolution[i])]]
-      seurat@meta.data <- seurat@meta.data[, !grepl("RNA_snn_res.", colnames(seurat@meta.data))]
-      data$cluster_resolution <- data$cluster_resolution[[i]]
-      break
-    }
-  }
 }
+
+# Dimensionality reduction and clustering
+print("STEP 2: CLUSTERING")
   
+if (data$batch != FALSE) {
+  seurat <- seurat %>% 
+    RunUMAP(reduction = "harmony", dims = 1:data$pca_dims, a = .5, b = 1.2, verbose = verbose) %>%
+    RunTSNE(reduction = "harmony", dims = 1:data$pca_dims, check_duplicates = FALSE)  %>%
+    FindNeighbors(reduction = "harmony", dims = 1:data$pca_dims, verbose = verbose) %>% 
+    FindClusters(resolution = data$cluster_resolution, verbose = verbose)
   p5 <- AugmentPlot(DimPlot(seurat, reduction = "umap", group.by = data$batch, pt.size = .1) + 
                       NoLegend() + 
                       ggtitle("After harmony"))
   p <- (p0 | p5) / (p1 | p3) / (p2 | p4)
   ggsave(plot = p, filename = "out/Harmony.png")
 } else {
-  print("STEP 2: CLUSTERING")
   seurat <- seurat %>% 
     RunUMAP(reduction = "pca", dims = 1:data$pca_dims, a = .5, b = 1.2, verbose = verbose) %>%
     RunTSNE(reduction = "pca", dims = 1:data$pca_dims, check_duplicates = FALSE)  %>%
     FindNeighbors(reduction = "pca", dims = 1:data$pca_dims, verbose = verbose) %>% 
     FindClusters(resolution = data$cluster_resolution, verbose = verbose)
-  
-  if (length(data$cluster_resolution) > 1) {
-    print("Defining optimal cluster resolution")
-    for (i in seq_along(data$cluster_resolution)) {
-      print(paste0("Checking resolution ", data$cluster_resolution[i]))
-      Idents(seurat) <- seurat[[paste0("RNA_snn_res.", data$cluster_resolution[i])]]
-      seurat.markers <- FindAllMarkers(seurat, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
-      seurat.markers.unique <- seurat.markers[!duplicated(seurat.markers$gene) & seurat.markers$p_val_adj < 0.05, ]
-      if (length(levels(seurat.markers$cluster)) != sum(table(seurat.markers.unique$cluster) > 20)) {
-        seurat$seurat_clusters <- seurat[[paste0("RNA_snn_res.", data$cluster_resolution[i])]]
-        seurat@meta.data <- seurat@meta.data[, !grepl("RNA_snn_res.", colnames(seurat@meta.data))]
-        data$cluster_resolution <- data$cluster_resolution[[i]]
-        break
-      }
+}
+
+if (length(data$cluster_resolution) > 1) {
+print("Defining optimal cluster resolution")
+  for (i in seq_along(data$cluster_resolution)) {
+    print(paste0("Checking resolution ", data$cluster_resolution[i]))
+    Idents(seurat) <- seurat[[paste0("RNA_snn_res.", data$cluster_resolution[i])]]
+    seurat.markers <- FindAllMarkers(seurat, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
+    seurat.markers.unique <- seurat.markers[!duplicated(seurat.markers$gene) & seurat.markers$p_val_adj < 0.05, ]
+    if (length(levels(seurat.markers$cluster)) != sum(table(seurat.markers.unique$cluster) > 10)) {
+      seurat$seurat_clusters <- seurat[[paste0("RNA_snn_res.", data$cluster_resolution[i-1])]]
+      data$cluster_resolution <- data$cluster_resolution[[i-1]]
+      Idents(seurat) <- seurat$seurat_clusters
+      break
     }
   }
 }
+seurat@meta.data <- seurat@meta.data[, !grepl("RNA_snn_res.", colnames(seurat@meta.data))]
+Idents(seurat) <- seurat$seurat_clusters #Set seurat_clusters to Idents
 
 # Supervised annotation
 
@@ -134,7 +121,6 @@ load(chetahClassifier_path)
 input <- SingleCellExperiment(assays = list(counts = seurat[["RNA"]]@data),
                               reducedDims = SimpleList(TSNE = seurat@reductions$umap@cell.embeddings))
 input <- CHETAHclassifier(input = input, ref_cells = reference, n_genes = 500, thresh = 0.05)
-
 p1 <- PlotCHETAH(input, return = TRUE) 
 #nodes <- c("Node1" = "Immune", "Node2" = "Immune", "Node3" = "Lymphoid", "Node4" = "Lymphoid", "Node5" = "NKT", "Node6" = "T", "Node7" = "T", "Node8" = "Myeloid", "Node9" = "Macro/DC", "Node10"= "Stromal", "Node11" = "Stromal")
 #input$celltype_CHETAH <- plyr::revalue(input$celltype_CHETAH, replace = nodes[names(nodes) %in% input$celltype_CHETAH])
@@ -216,12 +202,14 @@ for (i in as.character(na.omit(unique(cell.markers$cell_type)))) {
   }
 }
 
+#Idents(seurat) <- seurat$seurat_clusters #set seurat_clusters as idents
 temp <- AddModuleScore(seurat, features = markers)
-p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster[[:digit:]]", colnames(temp@meta.data))], cluster.idents = TRUE) + scale_x_discrete(labels = names(markers)) + RotatedAxis()
+p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster[[:digit:]]", colnames(temp@meta.data))], cluster.idents = TRUE, group.by = "seurat_clusters") + scale_x_discrete(labels = names(markers)) + RotatedAxis()
 ggsave(plot = p, filename = "temp/Dotplot_seuratClusters_geneModules.png", dpi = 100, height = 12, width = 12)
-p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip() + NoLegend()
 
+p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip()
 ggsave(plot = p0, filename = "temp/Dotplot_seuratClusters_genes.png", dpi = 100, height = 12, width = 12)
+
 p1 <- AugmentPlot(DimPlot(seurat, group.by = "seurat_clusters", label = TRUE, label.size = 12))
 cell.markers <- cell.markers[cell.markers$gene %in% rownames(seurat), ]
 for (type in unique(cell.markers$category)) {

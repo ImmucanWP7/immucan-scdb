@@ -69,7 +69,7 @@ Idents(seurat) <- seurat$seurat_clusters
 # Remove annotations with less than 10 cells
 for (i in data$annotation) {
   temp <- names(table(seurat@meta.data[[i]]))[table(seurat@meta.data[[i]]) <= 10]
-  seurat <- seurat[, !seurat@meta.data[[i]] %in% temp]
+  seurat@meta.data[seurat@meta.data[[i]] %in% temp, i] <- NA
 }
 
 # Plotting
@@ -148,7 +148,10 @@ temp <- AverageExpression(seurat, assays = "RNA")
 write.table(x = temp$RNA, file = "out/avgExpr_CHETAH.tsv", row.names = TRUE, sep = "\t")
 
 #Subsample object to 10k cells
-seurat <- seurat[, sample(colnames(seurat), size = 10000, replace = FALSE)]
+if (ncol(seurat) > 10000) {
+  sample_cells <- sample(x = colnames(seurat), size = 10000, replace = FALSE)
+  seurat <- seurat[, sample_cells]
+}
 
 # Export metadata with umap coordinates
 write.table(x = cbind(seurat@meta.data, seurat@reductions$umap@cell.embeddings), file = "out/metadata.tsv", row.names = TRUE, sep = "\t")

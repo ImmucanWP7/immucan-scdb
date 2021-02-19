@@ -5,6 +5,7 @@ object_path = "temp/raw.rds" #_raw.rds file
 cellMarker_path = "/home/jordi_camps/IMMUcan/TME_markerGenes.xlsx"
 chetahClassifier_path = "/home/jordi_camps/IMMUcan/CHETAH_reference_updatedAnnotation.RData"
 verbose = FALSE
+start_time <- Sys.time()
 
 # Make and set directories
 dir <- getwd()
@@ -149,13 +150,21 @@ if (data$malignant == TRUE) {
   counts <- as.matrix(seurat_sampled[["RNA"]]@counts)
   normal_cells <- rownames(seurat_sampled@meta.data[seurat_sampled$annotation_CHETAH %in% c("CD8 T cell", "Macrophage"), ])
   if (length(normal_cells) > 100) {
+    print("Running copykat with CD8 T and macorphage as normal cells")
     copykat.test <- copykat(rawmat=counts, id.type="S", ngene.chr=5, win.size=25, KS.cut=0.15, distance="euclidean", norm.cell.names=normal_cells, n.cores=4)
   } else {
+    print("Running copykat without normal cells")
     copykat.test <- copykat(rawmat=counts, id.type="S", ngene.chr=5, win.size=25, KS.cut=0.15, distance="euclidean", norm.cell.names="", n.cores=4)
   }
   pred.test <- data.frame(copykat.test$prediction)
-  seurat@meta.data <- merge(seurat@meta.data, pred.test[, "copykat.pred", drop = FALSE], by = "row.names", all = TRUE) %>% 
-    tibble::column_to_rownames("Row.names")
+  pred.test <- pred.test[, "copykat.pred", drop = FALSE]
+  seurat@meta.data <- seurat@meta.data %>%
+    tibble::rownames_to_column("cell") %>%
+    left_join(pred.test %>% 
+                tibble::rownames_to_column("cell"),
+              by = "cell") %>%
+    tibble::column_to_rownames("cell")
+  
   p1 <- DimPlot(seurat, group.by = "copykat.pred")
   p2 <- FeaturePlot(seurat, features = "EPCAM")
   p3 <- DimPlot(seurat, group.by = "seurat_clusters", label = TRUE) + NoLegend()
@@ -204,13 +213,13 @@ for (i in as.character(na.omit(unique(cell.markers$cell_type)))) {
 
 #Idents(seurat) <- seurat$seurat_clusters #set seurat_clusters as idents
 temp <- AddModuleScore(seurat, features = markers)
-p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster[[:digit:]]", colnames(temp@meta.data))], cluster.idents = TRUE, group.by = "seurat_clusters") + scale_x_discrete(labels = names(markers)) + RotatedAxis()
+p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster[[:digit:]]", colnames(temp@meta.data))], group.by = "seurat_clusters", cluster.idents = TRUE) + scale_x_discrete(labels = names(markers)) + RotatedAxis()
 ggsave(plot = p, filename = "temp/Dotplot_seuratClusters_geneModules.png", dpi = 100, height = 12, width = 12)
 
 p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip()
 ggsave(plot = p0, filename = "temp/Dotplot_seuratClusters_genes.png", dpi = 100, height = 12, width = 12)
 
-p1 <- AugmentPlot(DimPlot(seurat, group.by = "seurat_clusters", label = TRUE, label.size = 12))
+p1 <- AugmentPlot(DimPlot(seurat, label = TRUE, label.size = 12))
 cell.markers <- cell.markers[cell.markers$gene %in% rownames(seurat), ]
 for (type in unique(cell.markers$category)) {
   p2 <- FeaturePlot(seurat, features = unique(cell.markers[cell.markers$category == type, ]$gene), pt.size = .1)
@@ -254,3 +263,5 @@ saveRDS(seurat, paste0("temp/harmony.rds"))
 data <- toJSON(data)
 write(data, "out/data.json")
 print("ALL DONE")
+end_time <- Sys.time()
+end_time - start_time

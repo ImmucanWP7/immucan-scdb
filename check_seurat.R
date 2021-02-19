@@ -1,11 +1,13 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)
 seurat_obj = args[1] #path of seurat object
+batch_var = args[2] #batch variable if known
 QC_feature_min = 250 #Minimal features threshold
 QC_mt_max = 20 #Maximum mitochondrial content threshold
 pca_dims = 30 #Amount of PCA dimensions to use
 features_var = 2000 #Amount of variable features to select
 verbose = FALSE
+print(batch_var)
 
 dir <- getwd()
 setwd(dir)
@@ -67,9 +69,14 @@ if (ncol(seurat) > 20000) {
 seurat_sampled <- subset(seurat_sampled, subset = nFeature_RNA > QC_feature_min & percent.mt < QC_mt_max)
 
 ## Select potential batch columns from meta.data
-batch <- seurat_sampled@meta.data[, sapply(seurat_sampled@meta.data, class) %in% c("character", "factor")] #Select all columns that are factor or character
-batch <- batch[, sapply(sapply(batch, unique), length) != 1] #Remove all columns that have only one variable
-batch <- batch[, apply(batch, 2, function(x) !any(is.na(x)))] #Remove all columns with NAs
+if (is.na(batch_var)) {
+  batch <- seurat_sampled@meta.data[, sapply(seurat_sampled@meta.data, class) %in% c("character", "factor")] #Select all columns that are factor or character
+  batch <- batch[, sapply(sapply(batch, unique), length) != 1] #Remove all columns that have only one variable
+  batch <- batch[, apply(batch, 2, function(x) !any(is.na(x)))] #Remove all columns with NAs
+  batch <- colnames(batch)
+} else {
+  batch <- batch_var
+}
 
 ## Create nearest neighbour graph
 if (data$norm == FALSE) {
@@ -86,10 +93,9 @@ p <- ElbowPlot(seurat_sampled, ndims = pca_dims+20) + geom_vline(xintercept = pc
 ggsave(plot = p, filename = "temp/Elbow.png")
 
 ## Compute the percentage of batch in cell neighbors
-neighbors <- list()
 batch_entropy <- list()
-
-for (b in colnames(batch)) {
+for (b in batch) {
+  neighbors <- list()
   for (i in unique(seurat_sampled@meta.data[, b])) {
     temp <- rownames(seurat_sampled@meta.data[seurat_sampled@meta.data[ , b] == i, ])
     neighbors[[i]] <- rowSums(as.matrix(seurat_sampled@graphs$RNA_nn[, temp]))/30
@@ -143,7 +149,13 @@ if (length(batch_var) >= 1) {
       geom_hline(yintercept = QC_mt_max, color = "red") + 
       scale_y_continuous("Mito", expand = c(0,0)) +
       theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text())
-    p <- p1 + p2 / p3 / p4 / p5
+    p6 <- AugmentPlot(FeaturePlot(seurat_sampled, features = "CD3D", pt.size = .1)) +
+      theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text())
+    p7 <- AugmentPlot(FeaturePlot(seurat_sampled, features = "CD68", pt.size = .1)) +
+      theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text())
+    p8 <- AugmentPlot(FeaturePlot(seurat_sampled, features = "CLDN5", pt.size = .1)) +
+      theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text())
+    p <- (p1 + p2) / (p3 + p6) / (p4 + p7) / (p5 + p8)
     ggsave(plot = p, filename = paste0("temp/QC_", i, ".png"))
   }
 } else {
@@ -180,4 +192,11 @@ data$metadata = colnames(batch)
 data$annotation = c("seurat_clusters","annotation_CHETAH","annotation_major","annotation_immune","annotation_minor", colnames(seurat@meta.data)[grepl("Cluster|cluster|author|Author|Annotation|annotation", colnames(seurat@meta.data))])
 data$malignant = FALSE
 data <- toJSON(data)
-write(data, "out/data.json")
+
+if (!file.exists("out/data.json")) {
+  write(data, "out/data.json")
+} else {
+  print("data.json already exists, writing to copy")
+  write(data, "out/data_copy.json")
+}
+

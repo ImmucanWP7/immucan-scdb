@@ -7,7 +7,6 @@ QC_mt_max = 20 #Maximum mitochondrial content threshold
 pca_dims = 30 #Amount of PCA dimensions to use
 features_var = 2000 #Amount of variable features to select
 verbose = FALSE
-print(batch_var)
 
 dir <- getwd()
 setwd(dir)
@@ -70,9 +69,9 @@ seurat_sampled <- subset(seurat_sampled, subset = nFeature_RNA > QC_feature_min 
 
 ## Select potential batch columns from meta.data
 if (is.na(batch_var)) {
-  batch <- seurat_sampled@meta.data[, sapply(seurat_sampled@meta.data, class) %in% c("character", "factor")] #Select all columns that are factor or character
-  batch <- batch[, sapply(sapply(batch, unique), length) != 1] #Remove all columns that have only one variable
-  batch <- batch[, apply(batch, 2, function(x) !any(is.na(x)))] #Remove all columns with NAs
+  meta <- seurat_sampled@meta.data[, sapply(seurat_sampled@meta.data, class) %in% c("character", "factor")] #Select all columns that are factor or character
+  meta <- meta[, sapply(sapply(meta, unique), length) != 1] #Remove all columns that have only one variable
+  batch <- meta[, apply(meta, 2, function(x) !any(is.na(x)))] #Remove all columns with NAs
   batch <- colnames(batch)
 } else {
   batch <- batch_var
@@ -117,8 +116,9 @@ p <- batch_entropy %>%
   gather("batch", "entropy", -cell) %>%
   ggplot(aes(y = as.numeric(entropy), x = batch)) +
   geom_boxplot() +
-  scale_y_continuous("Entropy")
-ggsave(plot = p, filename = "temp/batch_entropy.png", width = 6, height = 6)
+  scale_y_continuous("Entropy") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggsave(plot = p, filename = "temp/batch_entropy.png", width = 10, height = 10)
 
 ## Save batch variables with entropy < 2
 batch_var <- list()
@@ -150,11 +150,11 @@ if (length(batch_var) >= 1) {
       scale_y_continuous("Mito", expand = c(0,0)) +
       theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text())
     p6 <- AugmentPlot(FeaturePlot(seurat_sampled, features = "CD3D", pt.size = .1)) +
-      theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text())
+      theme(axis.title.x = element_blank(), axis.title.y = element_text())
     p7 <- AugmentPlot(FeaturePlot(seurat_sampled, features = "CD68", pt.size = .1)) +
-      theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text())
+      theme(axis.title.x = element_blank(), axis.title.y = element_text())
     p8 <- AugmentPlot(FeaturePlot(seurat_sampled, features = "CLDN5", pt.size = .1)) +
-      theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text())
+      theme(axis.title.x = element_blank(), axis.title.y = element_text())
     p <- (p1 + p2) / (p3 + p6) / (p4 + p7) / (p5 + p8)
     ggsave(plot = p, filename = paste0("temp/QC_", i, ".png"))
   }
@@ -188,7 +188,7 @@ data$QC_feature_min = QC_feature_min
 data$QC_mt_max =  QC_mt_max
 data$pca_dims = pca_dims
 data$features_var = features_var
-data$metadata = colnames(batch)
+data$metadata = colnames(meta)
 data$annotation = c("seurat_clusters","annotation_CHETAH","annotation_major","annotation_immune","annotation_minor", colnames(seurat@meta.data)[grepl("Cluster|cluster|author|Author|Annotation|annotation", colnames(seurat@meta.data))])
 data$malignant = FALSE
 data <- toJSON(data)

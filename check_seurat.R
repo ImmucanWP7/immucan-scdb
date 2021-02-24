@@ -10,9 +10,11 @@ verbose = FALSE
 
 dir <- getwd()
 setwd(dir)
+print(dir)
 ifelse(!dir.exists("temp"), dir.create("temp"), "temp/ already exists")
 ifelse(!dir.exists("out"), dir.create("out"), "out/ already exists")
 
+suppressPackageStartupMessages({
 library(Seurat)
 library(ggplot2)
 library(patchwork)
@@ -22,9 +24,16 @@ library(DescTools)
 library(tidyr)
 library(tibble)
 library(jsonlite)
+})
 
 print("STEP 1: CHECKING SEURAT OBJECT")
 
+if (is.na(seurat_obj)) {
+  seurat_obj <- list.files(pattern = ".rds$")
+  if (length(seurat_obj) != 1) {
+    stop("Specify seurat object in arguments")
+  }
+}
 seurat_temp <- readRDS(seurat_obj)
 seurat <- CreateSeuratObject(counts = seurat_temp[["RNA"]]@counts, meta.data = seurat_temp@meta.data, min.cells = 10, min.features = 200)
 
@@ -68,10 +77,11 @@ if (ncol(seurat) > 20000) {
 seurat_sampled <- subset(seurat_sampled, subset = nFeature_RNA > QC_feature_min & percent.mt < QC_mt_max)
 
 ## Select potential batch columns from meta.data
+meta <- seurat_sampled@meta.data[, sapply(seurat_sampled@meta.data, class) %in% c("character", "factor")] #Select all columns that are factor or character
+meta <- meta[, sapply(sapply(meta, unique), length) != 1, drop = FALSE] #Remove all columns that have only one variable
+meta <- apply(meta, 2, function(x) gsub("^$|^ $", NA, x)) #Remove all columns with NAs
 if (is.na(batch_var)) {
-  meta <- seurat_sampled@meta.data[, sapply(seurat_sampled@meta.data, class) %in% c("character", "factor")] #Select all columns that are factor or character
-  meta <- meta[, sapply(sapply(meta, unique), length) != 1] #Remove all columns that have only one variable
-  batch <- meta[, apply(meta, 2, function(x) !any(is.na(x)))] #Remove all columns with NAs
+  batch <- meta[, apply(meta, 2, function(x) !any(is.na(x))), drop = FALSE] #Remove all columns with NAs
   batch <- colnames(batch)
 } else {
   batch <- batch_var
@@ -189,8 +199,9 @@ data$QC_mt_max =  QC_mt_max
 data$pca_dims = pca_dims
 data$features_var = features_var
 data$metadata = colnames(meta)
-data$annotation = c("seurat_clusters","annotation_CHETAH","annotation_major","annotation_immune","annotation_minor", colnames(seurat@meta.data)[grepl("Cluster|cluster|author|Author|Annotation|annotation", colnames(seurat@meta.data))])
-data$malignant = FALSE
+data$annotation = c("seurat_clusters","annotation_CHETAH","annotation_major","annotation_immune","annotation_minor", colnames(seurat@meta.data)[grepl("Cluster|cluster|author|Author|Annotation|annotation|Cell_type|cell_type", colnames(seurat@meta.data))])
+data$malignant = TRUE
+data$normal_cells = NA
 data <- toJSON(data)
 
 if (!file.exists("out/data.json")) {

@@ -5,10 +5,10 @@ object_path = "temp/raw.rds" #_raw.rds file
 cellMarker_path = "/home/jordi_camps/IMMUcan/TME_markerGenes.xlsx"
 chetahClassifier_path = "/home/jordi_camps/IMMUcan/CHETAH_reference_updatedAnnotation.RData"
 verbose = FALSE
-start_time <- Sys.time()
 
 # Make and set directories
 dir <- getwd()
+print(dir)
 setwd(dir)
 if (!file.exists("temp/raw.rds")) {
   stop("first run check_seurat.R")
@@ -51,11 +51,11 @@ seurat <- subset(seurat, subset = nFeature_RNA > data$QC_feature_min & percent.m
 if (data$norm == FALSE) {
   seurat <- Seurat::NormalizeData(seurat, verbose = verbose)
 }
-seurat <- seurat %>% 
+seurat <- suppressWarnings(seurat %>% 
   FindVariableFeatures(selection.method = "vst", nfeatures = data$features_var, verbose = verbose) %>% 
   ScaleData(verbose = verbose) %>% 
   RunPCA(pc.genes = seurat@var.genes, npcs = data$pca_dims+20, verbose = verbose) %>%
-  RunUMAP(dims = 1:data$pca_dims, a = .5, b = 1.2, verbose = verbose)
+  RunUMAP(dims = 1:data$pca_dims, a = .5, b = 1.2, verbose = verbose))
 
 # Harmony
 
@@ -100,14 +100,25 @@ if (data$batch != FALSE) {
 if (length(data$cluster_resolution) > 1) {
 print("Defining optimal cluster resolution")
   for (i in seq_along(data$cluster_resolution)) {
+    if (ncol(seurat) > 20000) {
+      samples <- sample(colnames(seurat), 20000, replace = FALSE)
+      seurat_sampled <- seurat[, samples]
+    } else {
+      seurat_sampled <- seurat
+    }
     print(paste0("Checking resolution ", data$cluster_resolution[i]))
-    Idents(seurat) <- seurat[[paste0("RNA_snn_res.", data$cluster_resolution[i])]]
-    seurat.markers <- FindAllMarkers(seurat, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
+    Idents(seurat_sampled) <- seurat_sampled[[paste0("RNA_snn_res.", data$cluster_resolution[i])]]
+    seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
     seurat.markers.unique <- seurat.markers[!duplicated(seurat.markers$gene) & seurat.markers$p_val_adj < 0.05, ]
-    if (length(levels(seurat.markers$cluster)) != sum(table(seurat.markers.unique$cluster) > 10)) {
-      seurat$seurat_clusters <- seurat[[paste0("RNA_snn_res.", data$cluster_resolution[i-1])]]
-      data$cluster_resolution <- data$cluster_resolution[[i-1]]
-      Idents(seurat) <- seurat$seurat_clusters
+    if (length(levels(seurat.markers$cluster)) != sum(table(seurat.markers.unique$cluster) > 1)) {
+      if (i == 1) {
+      print("optimal cluster resolution lower as the minimum, consider 1) checking QC, 2) running a doublet identifier or 3) adapting the resolution")
+      seurat$seurat_clusters <- seurat[[paste0("RNA_snn_res.", data$cluster_resolution[i])]]
+      data$cluster_resolution <- data$cluster_resolution[[i]]
+      } else {
+        seurat$seurat_clusters <- seurat[[paste0("RNA_snn_res.", data$cluster_resolution[i-1])]]
+        data$cluster_resolution <- data$cluster_resolution[[i-1]]
+      }
       break
     }
   }
@@ -148,13 +159,17 @@ if (data$malignant == TRUE) {
     seurat_sampled <- seurat
   }
   counts <- as.matrix(seurat_sampled[["RNA"]]@counts)
-  normal_cells <- rownames(seurat_sampled@meta.data[seurat_sampled$annotation_CHETAH %in% c("CD8 T cell", "Macrophage"), ])
-  if (length(normal_cells) > 100) {
-    print("Running copykat with CD8 T and macorphage as normal cells")
+  if (is.na(data$normal_cells)) {
+    normal_cells <- rownames(seurat_sampled@meta.data[seurat_sampled$annotation_CHETAH %in% c("Macrophage"), ])
+    print("Running copykat with Macrophages as normal cells")
     copykat.test <- copykat(rawmat=counts, id.type="S", ngene.chr=5, win.size=25, KS.cut=0.15, distance="euclidean", norm.cell.names=normal_cells, n.cores=4)
-  } else {
+  } else if (data$normal_cells == FALSE) {
     print("Running copykat without normal cells")
     copykat.test <- copykat(rawmat=counts, id.type="S", ngene.chr=5, win.size=25, KS.cut=0.15, distance="euclidean", norm.cell.names="", n.cores=4)
+  } else {
+    normal_cells <- rownames(seurat_sampled@meta.data[seurat_sampled$annotation_CHETAH %in% c(data$normal_cells), ])
+    print(paste0("Running copykat with ", data$normal_cells, " as normal cells"))
+    copykat.test <- copykat(rawmat=counts, id.type="S", ngene.chr=5, win.size=25, KS.cut=0.15, distance="euclidean", norm.cell.names=normal_cells, n.cores=4)
   }
   pred.test <- data.frame(copykat.test$prediction)
   pred.test <- pred.test[, "copykat.pred", drop = FALSE]
@@ -263,5 +278,3 @@ saveRDS(seurat, paste0("temp/harmony.rds"))
 data <- toJSON(data)
 write(data, "out/data.json")
 print("ALL DONE")
-end_time <- Sys.time()
-end_time - start_time

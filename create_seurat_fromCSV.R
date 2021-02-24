@@ -1,19 +1,25 @@
 library(Seurat)
 library(tidyverse)
-library(vroom)
 library(tidyr)
 
-# Read count matrix
-read.csv("", header = TRUE, row.names = 1, sep = "\t", nrows = 6)[,1:6] #Read try
-counts <- read.csv("", header = TRUE, row.names = 1, sep = "\t")
-meta <- data.frame("cell_id" = colnames(counts))
-meta <- meta %>% 
-  tidyr::separate(col = cell_id, into = c("barcode", "Patient_id"), remove = FALSE) %>%
-  select(-barcode) %>%
-  tibble::column_to_rownames("cell_id")
+count_file <- ""
+meta_file <- ""
+patient_file <- ""
 
-# Patient info
+print("Read count matrix")
+counts_test <- read.csv(count_file, header = TRUE, row.names = 1, sep = " ", nrows = 6) #Read try
+counts_test[,1:6]
+counts <- read.csv(count_file, header = TRUE, row.names = 1, sep = " ")
 
-# Create Seurat object
+print("Metadata")
+meta <- read.csv(meta_file, header = TRUE, sep = "\t", row.names = 1)
+
+print("Patient info")
+patient <- read.csv(patient_file, header = TRUE, sep = "\t", row.names = 1)
+
+print("colnames counts equal to rownames meta.data")
+ncol(counts_test) == sum(colnames(counts_test) == rownames(meta))
+
+print("Create Seurat object")
 seurat <- CreateSeuratObject(counts = counts, meta.data = meta)
 saveRDS(seurat, "raw.rds")

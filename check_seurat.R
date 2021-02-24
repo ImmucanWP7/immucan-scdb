@@ -46,13 +46,14 @@ if (sum(colnames(seurat) == rownames(seurat@meta.data)) == ncol(seurat)) {
   stop("Cell IDs linked uncorrectly")
 }
 
-gapdh <- grepl("GAPDH|gapdh", rownames(seurat))
+gapdh <- grepl("GAPDH|Gapdh", rownames(seurat))
 data <- list()
-if (sum(grepl("//.", seurat[["RNA"]]@counts[gapdh, ])) == 0) {
+if (sum(grepl("\\.", seurat[["RNA"]]@counts[gapdh, ])) == 0) {
   data$norm <- FALSE
   print("Raw counts supplied")
 } else {
   data$norm <- TRUE
+  seurat[["RNA"]]@data <- seurat[["RNA"]]@counts
   print("Normalized counts supplied, data won't be normalized")
 }
 

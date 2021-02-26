@@ -7,6 +7,7 @@ verbose = FALSE
 
 dir <- getwd()
 setwd(dir)
+print(dir)
 if (!file.exists("temp/harmony.rds")) {
   stop("first run scProcessor_1.R")
 }

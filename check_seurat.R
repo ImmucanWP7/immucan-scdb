@@ -57,11 +57,16 @@ if (sum(grepl("\\.", seurat[["RNA"]]@counts[gapdh, ])) == 0) {
   print("Normalized counts supplied, data won't be normalized")
 }
 
+seurat[["RNA"]]@counts[1:5,1:5]
+dplyr::glimpse(seurat@meta.data)
+bad_columns1 <- colnames(seurat@meta.data[, sapply(sapply(seurat@meta.data, unique), length) == 1, drop = FALSE])
+bad_columns2 <- colnames(seurat@meta.data[, sapply(sapply(seurat@meta.data, unique), length) == ncol(seurat), drop = FALSE])
+print(paste0("Removing columns with only one or only unique values: ", c(bad_columns1, bad_columns2)))
+seurat@meta.data <- seurat@meta.data[, !colnames(seurat@meta.data) %in% c(bad_columns1, bad_columns2)] #Remove all columns that have only one variable
+
 ## Add mitochondrial fraction information
 seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^Mt\\.|^MT\\.|^mt\\.|^Mt-|^MT-|^mt-")
 
-seurat[["RNA"]]@counts[1:5,1:5]
-dplyr::glimpse(seurat@meta.data)
 saveRDS(seurat, "temp/raw.rds")
 
 # Batch
@@ -144,8 +149,8 @@ for (i in colnames(batch_entropy)) {
 print("STEP 3: CREATE QC PLOTS")
 if (length(batch_var) >= 1) {
   for (i in names(batch_var)) {
-    p1 <- DimPlot(seurat_sampled, reduction = "pca", pt.size = 1, group.by = i, label = TRUE) + NoLegend()
-    p2 <- DimPlot(seurat_sampled, reduction = "umap", pt.size = 1, group.by = i, label = TRUE) + NoLegend()
+    p1 <- DimPlot(seurat_sampled, reduction = "pca", pt.size = .1, group.by = i, label = TRUE) + NoLegend()
+    p2 <- DimPlot(seurat_sampled, reduction = "umap", pt.size = .1, group.by = i, label = TRUE) + NoLegend()
     p3 <- AugmentPlot(VlnPlot(seurat, features = "nFeature_RNA", pt.size = 0.1, group.by = i, log = TRUE)) + 
       NoLegend() +
       scale_y_log10("Genes", expand = c(0,0)) + 
@@ -160,13 +165,19 @@ if (length(batch_var) >= 1) {
       geom_hline(yintercept = QC_mt_max, color = "red") + 
       scale_y_continuous("Mito", expand = c(0,0)) +
       theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text())
-    p6 <- AugmentPlot(FeaturePlot(seurat_sampled, features = "CD3D", pt.size = .1)) +
-      theme(axis.title.x = element_blank(), axis.title.y = element_text())
-    p7 <- AugmentPlot(FeaturePlot(seurat_sampled, features = "CD68", pt.size = .1)) +
-      theme(axis.title.x = element_blank(), axis.title.y = element_text())
-    p8 <- AugmentPlot(FeaturePlot(seurat_sampled, features = "CLDN5", pt.size = .1)) +
-      theme(axis.title.x = element_blank(), axis.title.y = element_text())
-    p <- (p1 + p2) / (p3 + p6) / (p4 + p7) / (p5 + p8)
+    if ("CD3D" %in% rownames(seurat)) {
+      p6 <- AugmentPlot(FeaturePlot(seurat_sampled, features = "CD3D", pt.size = .1)) +
+        theme(axis.title.x = element_blank(), axis.title.y = element_text())
+    } else if ("CD68" %in% rownames(seurat)) {
+      p6 <- AugmentPlot(FeaturePlot(seurat_sampled, features = "CD68", pt.size = .1)) +
+        theme(axis.title.x = element_blank(), axis.title.y = element_text())
+    } else if ("CLDN5" %in% rownames(seurat)) {
+      p6 <- AugmentPlot(FeaturePlot(seurat_sampled, features = "CLDN5", pt.size = .1)) +
+        theme(axis.title.x = element_blank(), axis.title.y = element_text())
+    } else {
+      p6 <- AugmentPlot(DimPlot(seurat, group.by = i))
+    }
+    p <- (p1 + p2) / (p3 + p5) / (p4 + p6)
     ggsave(plot = p, filename = paste0("temp/QC_", i, ".png"))
   }
 } else {

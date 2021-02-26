@@ -73,8 +73,8 @@ saveRDS(seurat, "temp/raw.rds")
 print("STEP 2: ESTIMATING BATCH VARIABLE")
 
 ## Sample object to max 20k cells
-if (ncol(seurat) > 20000) {
-  seurat_sampled <- seurat[, sample(colnames(seurat), 20000, replace = FALSE)]
+if (ncol(seurat) > 10000) {
+  seurat_sampled <- seurat[, sample(colnames(seurat), 10000, replace = FALSE)]
 } else {
   seurat_sampled <- seurat
 }

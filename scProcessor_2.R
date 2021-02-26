@@ -98,9 +98,8 @@ for (i in temp) {
 
 # DE
 print("STEP 2: CALCULATING MARKER GENES")
-if (ncol(seurat) > 20000) {
-  sample_cells <- sample(x = colnames(seurat), size = 20000, replace = FALSE)
-  seurat_sampled <- seurat[, sample_cells]
+if (ncol(seurat) > length(data$samples)) {
+  seurat_sampled <- seurat[, data$samples]
 } else {
   seurat_sampled <- seurat
 }
@@ -149,9 +148,8 @@ temp <- AverageExpression(seurat, assays = "RNA")
 write.table(x = temp$RNA, file = "out/avgExpr_CHETAH.tsv", row.names = TRUE, sep = "\t")
 
 #Subsample object to 10k cells
-if (ncol(seurat) > 10000) {
-  sample_cells <- sample(x = colnames(seurat), size = 10000, replace = FALSE)
-  seurat <- seurat[, sample_cells]
+if (ncol(seurat) > length(data$samples)) {
+  seurat <- seurat[, data$samples]
 }
 
 # Export metadata with umap coordinates

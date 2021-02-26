@@ -13,12 +13,12 @@ counts <- read.csv(count_file, header = TRUE, row.names = 1, sep = " ")
 
 print("Metadata")
 meta <- read.csv(meta_file, header = TRUE, sep = "\t", row.names = 1)
+print(head(meta))
 
 print("Patient info")
 patient <- read.csv(patient_file, header = TRUE, sep = "\t", row.names = 1)
 
-print("colnames counts equal to rownames meta.data")
-ncol(counts_test) == sum(colnames(counts_test) == rownames(meta))
+if (ncol(counts) != sum(colnames(counts) == rownames(meta))) {stop("colnames counts not equal to rownames meta.data")}
 
 print("Create Seurat object")
 seurat <- CreateSeuratObject(counts = counts, meta.data = meta)

@@ -41,7 +41,7 @@ plan("multisession", workers = 4)
 
 seurat <- readRDS(object_path)
 data <- fromJSON("out/data.json")
-data$samples <- sample(colnames(seurat), nSample, replace = FALSE)
+if (ncol(seurat) > nSample) {data$samples <- sample(colnames(seurat), nSample, replace = FALSE)}
 if (length(data$batch) > 1) {stop("More than one batch specified, select the correct batch")}
 if (!"cluster_resolution" %in% names(data)) {data$cluster_resolution = seq(from = 0.4, to = 3, by = 0.1)}
 

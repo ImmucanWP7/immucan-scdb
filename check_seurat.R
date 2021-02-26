@@ -60,9 +60,8 @@ if (sum(grepl("\\.", seurat[["RNA"]]@counts[gapdh, ])) == 0) {
 seurat[["RNA"]]@counts[1:5,1:5]
 dplyr::glimpse(seurat@meta.data)
 bad_columns1 <- colnames(seurat@meta.data[, sapply(sapply(seurat@meta.data, unique), length) == 1, drop = FALSE])
-bad_columns2 <- colnames(seurat@meta.data[, sapply(sapply(seurat@meta.data, unique), length) == ncol(seurat), drop = FALSE])
-print(paste0("Removing columns with only one or only unique values: ", c(bad_columns1, bad_columns2)))
-seurat@meta.data <- seurat@meta.data[, !colnames(seurat@meta.data) %in% c(bad_columns1, bad_columns2)] #Remove all columns that have only one variable
+print(paste0("Removing columns with only one or only unique values: ", c(bad_columns1)))
+seurat@meta.data <- seurat@meta.data[, !colnames(seurat@meta.data) %in% c(bad_columns1)] #Remove all columns that have only one variable
 
 ## Add mitochondrial fraction information
 seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^Mt\\.|^MT\\.|^mt\\.|^Mt-|^MT-|^mt-")

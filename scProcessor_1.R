@@ -41,7 +41,7 @@ plan("multisession", workers = 4)
 seurat <- readRDS(object_path)
 data <- fromJSON("out/data.json")
 if (length(data$batch) > 1) {stop("More than one batch specified, select the correct batch")}
-if (!"cluster_resolution" %in% names(data)) {data$cluster_resolution = seq(from = 0.4, to = 3, by = 0.2)}
+if (!"cluster_resolution" %in% names(data)) {data$cluster_resolution = seq(from = 0.4, to = 3, by = 0.1)}
 
 # QC
 
@@ -72,7 +72,6 @@ if (data$batch != FALSE) {
   
   p3 <- AugmentPlot(DimPlot(object = seurat, reduction = "harmony", pt.size = .1, group.by = data$batch) + NoLegend())
   p4 <- AugmentPlot(VlnPlot(object = seurat, features = "harmony_1", group.by = data$batch, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
-  
 }
 
 # Dimensionality reduction and clustering
@@ -99,30 +98,37 @@ if (data$batch != FALSE) {
 
 if (length(data$cluster_resolution) > 1) {
 print("Defining optimal cluster resolution")
+  if (ncol(seurat) > 20000) { #Change back to 20k
+    samples <- sample(colnames(seurat), 20000, replace = FALSE) #change back to 20k
+    seurat_sampled <- seurat[, samples]
+  } else {
+    seurat_sampled <- seurat
+  }
+  clusters <- seurat_sampled@meta.data[, grepl("RNA_snn_res.", colnames(seurat_sampled@meta.data))]
+  clusters <- apply(clusters, 2, as.numeric)
+  data$cluster_resolution <- data$cluster_resolution[!duplicated(apply(clusters, 2, max))]
+  diff2 = 0
+  DE <- list()
+  DE.unique <- list()
   for (i in seq_along(data$cluster_resolution)) {
-    if (ncol(seurat) > 20000) {
-      samples <- sample(colnames(seurat), 20000, replace = FALSE)
-      seurat_sampled <- seurat[, samples]
-    } else {
-      seurat_sampled <- seurat
-    }
     print(paste0("Checking resolution ", data$cluster_resolution[i]))
     Idents(seurat_sampled) <- seurat_sampled[[paste0("RNA_snn_res.", data$cluster_resolution[i])]]
     seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
     seurat.markers.unique <- seurat.markers[!duplicated(seurat.markers$gene) & seurat.markers$p_val_adj < 0.05, ]
-    if (length(levels(seurat.markers$cluster)) != sum(table(seurat.markers.unique$cluster) > 1)) {
-      if (i == 1) {
-      print("optimal cluster resolution lower as the minimum, consider 1) checking QC, 2) running a doublet identifier or 3) adapting the resolution")
-      seurat$seurat_clusters <- seurat[[paste0("RNA_snn_res.", data$cluster_resolution[i])]]
-      data$cluster_resolution <- data$cluster_resolution[[i]]
-      } else {
+    clust_num <- nlevels(seurat.markers$cluster)
+    clust_unique <- sum(table(seurat.markers.unique$cluster) > 1)
+    if (i == 1) {
+      diff1 <- clust_num - clust_unique
+    } else {
+      diff2 <- clust_num - clust_unique
+    }
+    if (diff2 > diff1) {
         seurat$seurat_clusters <- seurat[[paste0("RNA_snn_res.", data$cluster_resolution[i-1])]]
         data$cluster_resolution <- data$cluster_resolution[[i-1]]
+        break
       }
-      break
     }
   }
-}
 seurat@meta.data <- seurat@meta.data[, !grepl("RNA_snn_res.", colnames(seurat@meta.data))]
 Idents(seurat) <- seurat$seurat_clusters #Set seurat_clusters to Idents
 

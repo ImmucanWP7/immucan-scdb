@@ -6,6 +6,7 @@ QC_feature_min = 250 #Minimal features threshold
 QC_mt_max = 20 #Maximum mitochondrial content threshold
 pca_dims = 30 #Amount of PCA dimensions to use
 features_var = 2000 #Amount of variable features to select
+nSample = 10000
 verbose = FALSE
 
 dir <- getwd()
@@ -71,10 +72,13 @@ saveRDS(seurat, "temp/raw.rds")
 # Batch
 print("STEP 2: ESTIMATING BATCH VARIABLE")
 
-## Sample object to max 20k cells
-if (ncol(seurat) > 10000) {
-  seurat_sampled <- seurat[, sample(colnames(seurat), 10000, replace = FALSE)]
+## Sample object to max nSample specified
+if (ncol(seurat) > nSample) {
+  sampling <- TRUE
+  samples <- sample(colnames(seurat), nSample, replace = FALSE)
+  seurat_sampled <- seurat[, samples]
 } else {
+  sampling <- FALSE
   seurat_sampled <- seurat
 }
 
@@ -211,8 +215,12 @@ data$pca_dims = pca_dims
 data$features_var = features_var
 data$metadata = colnames(meta)
 data$annotation = c("seurat_clusters","annotation_CHETAH","annotation_major","annotation_immune","annotation_minor", colnames(seurat@meta.data)[grepl("Cluster|cluster|author|Author|Annotation|annotation|Cell_type|cell_type", colnames(seurat@meta.data))])
+data$cluster_resolution = seq(from = 0.4, to = 3, by = 0.1)
 data$malignant = TRUE
 data$normal_cells = NA
+data$sampling = sampling
+if (data$sampling) {data$nSample = nSample}
+if (data$sampling) {data$samples = samples}
 data <- toJSON(data)
 
 if (!file.exists("out/data.json")) {

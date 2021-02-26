@@ -4,7 +4,6 @@ data = "out/data.json" #If data is already normalized or not, stored by check_se
 object_path = "temp/raw.rds" #_raw.rds file
 cellMarker_path = "/home/jordi_camps/IMMUcan/TME_markerGenes.xlsx"
 chetahClassifier_path = "/home/jordi_camps/IMMUcan/CHETAH_reference_updatedAnnotation.RData"
-nSample = 10000
 verbose = FALSE
 
 # Make and set directories
@@ -41,7 +40,6 @@ plan("multisession", workers = 4)
 
 seurat <- readRDS(object_path)
 data <- fromJSON("out/data.json")
-if (ncol(seurat) > nSample) {data$samples <- sample(colnames(seurat), nSample, replace = FALSE)}
 if (length(data$batch) > 1) {stop("More than one batch specified, select the correct batch")}
 if (!"cluster_resolution" %in% names(data)) {data$cluster_resolution = seq(from = 0.4, to = 3, by = 0.1)}
 
@@ -100,8 +98,8 @@ if (data$batch != FALSE) {
 
 if (length(data$cluster_resolution) > 1) {
 print("Defining optimal cluster resolution")
-  if (ncol(seurat) > nSample) {
-    seurat_sampled <- seurat[, data$samples]
+  if (data$sampling) {
+      seurat_sampled <- seurat[, data$samples]
   } else {
     seurat_sampled <- seurat
   }
@@ -159,7 +157,7 @@ fraction_chetah <- seurat@meta.data %>%
 
 if (data$malignant == TRUE) {
   print("STEP 3b: CALLING COPY NUMBER ABBERATIONS")
-  if (ncol(seurat) > nSample) {
+  if (data$sampling) {
     seurat_sampled <- seurat[, data$samples]
   } else {
     seurat_sampled <- seurat
@@ -181,9 +179,7 @@ if (data$malignant == TRUE) {
   pred.test <- pred.test[, "copykat.pred", drop = FALSE]
   seurat@meta.data <- seurat@meta.data %>%
     tibble::rownames_to_column("cell") %>%
-    left_join(pred.test %>% 
-                tibble::rownames_to_column("cell"),
-              by = "cell") %>%
+    left_join(tibble::rownames_to_column(pred.test, "cell"), by = "cell") %>%
     tibble::column_to_rownames("cell")
   
   p1 <- DimPlot(seurat, group.by = "copykat.pred")

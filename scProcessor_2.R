@@ -98,7 +98,7 @@ for (i in temp) {
 
 # DE
 print("STEP 2: CALCULATING MARKER GENES")
-if (ncol(seurat) > length(data$samples)) {
+if (data$sampling) {
   seurat_sampled <- seurat[, data$samples]
 } else {
   seurat_sampled <- seurat
@@ -148,9 +148,7 @@ temp <- AverageExpression(seurat, assays = "RNA")
 write.table(x = temp$RNA, file = "out/avgExpr_CHETAH.tsv", row.names = TRUE, sep = "\t")
 
 #Subsample object to 10k cells
-if (ncol(seurat) > length(data$samples)) {
-  seurat <- seurat[, data$samples]
-}
+if (data$sampling) {seurat <- seurat[, data$samples]}
 
 # Export metadata with umap coordinates
 write.table(x = cbind(seurat@meta.data, seurat@reductions$umap@cell.embeddings), file = "out/metadata.tsv", row.names = TRUE, sep = "\t")

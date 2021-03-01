@@ -125,7 +125,7 @@ Output:
 
 on the terminal
 ```
-cp out [DATASET_ID]_-_`md5sum /etc/group | awk -F" " '{print $1}'`
+cp -r out [DATASET_ID]_-_`md5sum /etc/group | awk -F" " '{print $1}'`
 zip -r [DATASET_ID_-_checksum].zip [DATASET_ID_-_checksum]
 ```
 

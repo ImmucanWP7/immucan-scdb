@@ -72,7 +72,8 @@ if (data$batch != FALSE) {
   p2 <- AugmentPlot(VlnPlot(object = seurat, features = "PC_1", group.by = data$batch, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
   
   seurat <- seurat %>% 
-    RunHarmony(data$batch, plot_convergence = FALSE, verbose = verbose)
+    RunHarmony(data$batch, plot_convergence = FALSE, verbose = verbose) %>%
+    identity()
   
   p3 <- AugmentPlot(DimPlot(object = seurat, reduction = "harmony", pt.size = .1, group.by = data$batch) + NoLegend())
   p4 <- AugmentPlot(VlnPlot(object = seurat, features = "harmony_1", group.by = data$batch, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
@@ -117,7 +118,7 @@ print("Defining optimal cluster resolution")
     seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
     seurat.markers.unique <- seurat.markers[!duplicated(seurat.markers$gene) & seurat.markers$p_val_adj < 0.05, ]
     clust_num <- nlevels(seurat.markers$cluster)
-    clust_unique <- sum(table(seurat.markers.unique$cluster) > 1)
+    clust_unique <- sum(table(seurat.markers.unique$cluster) > 10)
     if (i == 1) {
       diff1 <- clust_num - clust_unique
     } else {
@@ -159,8 +160,8 @@ fraction_chetah <- seurat@meta.data %>%
 
 if (data$malignant == TRUE) {
   print("STEP 3b: CALLING COPY NUMBER ABBERATIONS")
-  if (exists("samples")) {
-    seurat_sampled <- seurat[, samples]
+  if (exists("subsamples")) {
+    seurat_sampled <- seurat[, subsamples]
   } else {
     seurat_sampled <- seurat
   }

@@ -154,7 +154,7 @@ if (exists("subsamples")) {seurat <- seurat[, subsamples]}
 write.table(x = cbind(seurat@meta.data, seurat@reductions$umap@cell.embeddings), file = "out/metadata.tsv", row.names = TRUE, sep = "\t")
 
 Idents(seurat) <- seurat$cell_ontology
-seurat@meta.data <- seurat@meta.data[, !grepl("RNA_snn_res|abbreviation|cell_id|cell.id|orig.ident|cell_ontology", colnames(seurat@meta.data))]
+seurat@meta.data <- seurat@meta.data[, !grepl("RNA_snn_res|abbreviation|cell_id|cell.id|cell_ontology", colnames(seurat@meta.data))]
 
 # Convert to h5ad with sceasy for immediate use with cellxgene
 sceasy::convertFormat(seurat, from="seurat", to="anndata", outFile= "out/cellxgene.h5ad")

@@ -1,1 +1,0 @@
-{"norm":[false],"batch":[false],"QC_feature_min":[250],"QC_mt_max":[20],"pca_dims":[30],"features_var":[2000],"metadata":["FILL IN"],"annotation":["seurat_clusters","annotation_CHETAH","annotation_major","annotation_immune","annotation_minor"],"malignant":[false],"cluster_resolution":[1]}

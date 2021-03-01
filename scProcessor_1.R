@@ -1,18 +1,9 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)
 data = "out/data.json" #If data is already normalized or not, stored by check_seurat.R
-object_path = "temp/raw.rds" #_raw.rds file
 cellMarker_path = "/home/jordi_camps/IMMUcan/TME_markerGenes.xlsx"
 chetahClassifier_path = "/home/jordi_camps/IMMUcan/CHETAH_reference_updatedAnnotation.RData"
 verbose = FALSE
-
-# Make and set directories
-dir <- getwd()
-print(dir)
-setwd(dir)
-if (!file.exists("temp/raw.rds")) {
-  stop("first run check_seurat.R")
-}
 
 # Load packages and set environment
 suppressPackageStartupMessages({
@@ -31,26 +22,39 @@ suppressPackageStartupMessages({
   library(future)
   library(jsonlite)
 })
+
 suppressWarnings(RNGkind(sample.kind = "Rounding"))
 set.seed(111)
 options(future.globals.maxSize= 150000*1024^2)
 plan("multisession", workers = 4)
 
+# Make and set directories
+dir <- getwd()
+print(dir)
+setwd(dir)
+if (!file.exists("out/data.json")) {stop("first run check_seurat.R")}
+data <- fromJSON("out/data.json")
+
 # Recreate seurat object
 
-seurat <- readRDS(object_path)
-data <- fromJSON("out/data.json")
+seurat_temp <- readRDS(data$object_path)
+seurat <- CreateSeuratObject(counts = seurat_temp[["RNA"]]@counts, meta.data = seurat_temp@meta.data, min.cells = 10, min.features = 200)
 if (length(data$batch) > 1) {stop("More than one batch specified, select the correct batch")}
 if (!"cluster_resolution" %in% names(data)) {data$cluster_resolution = seq(from = 0.4, to = 3, by = 0.1)}
+if (!is.na(data$nSample) & ncol(seurat) > data$nSample) {subsamples <- sample(ncol(seurat), data$nSample, replace = FALSE)}
 
 # QC
 
 print("STEP 1a: QC")
 cells_before_QC <- ncol(seurat)
+bad_columns <- colnames(seurat@meta.data[, sapply(sapply(seurat@meta.data, unique), length) == 1, drop = FALSE])
+print(paste0("Removing columns with only one value: ", c(bad_columns)))
+seurat@meta.data <- seurat@meta.data[, !colnames(seurat@meta.data) %in% c(bad_columns)] #Remove all columns that have only one variable
+seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^Mt\\.|^MT\\.|^mt\\.|^Mt-|^MT-|^mt-")
 seurat <- subset(seurat, subset = nFeature_RNA > data$QC_feature_min & percent.mt < data$QC_mt_max)
 if (data$norm == FALSE) {
   seurat <- Seurat::NormalizeData(seurat, verbose = verbose)
-}
+} else {seurat[["RNA"]]@data <- seurat[["RNA"]]@counts}
 seurat <- suppressWarnings(seurat %>% 
   FindVariableFeatures(selection.method = "vst", nfeatures = data$features_var, verbose = verbose) %>% 
   ScaleData(verbose = verbose) %>% 
@@ -98,8 +102,8 @@ if (data$batch != FALSE) {
 
 if (length(data$cluster_resolution) > 1) {
 print("Defining optimal cluster resolution")
-  if (data$sampling) {
-      seurat_sampled <- seurat[, data$samples]
+  if (exists("subsamples")) {
+    seurat_sampled <- seurat[, subsamples]
   } else {
     seurat_sampled <- seurat
   }
@@ -107,8 +111,6 @@ print("Defining optimal cluster resolution")
   clusters <- apply(clusters, 2, as.numeric)
   data$cluster_resolution <- data$cluster_resolution[!duplicated(apply(clusters, 2, max))]
   diff2 = 0
-  DE <- list()
-  DE.unique <- list()
   for (i in seq_along(data$cluster_resolution)) {
     print(paste0("Checking resolution ", data$cluster_resolution[i]))
     Idents(seurat_sampled) <- seurat_sampled[[paste0("RNA_snn_res.", data$cluster_resolution[i])]]
@@ -157,8 +159,8 @@ fraction_chetah <- seurat@meta.data %>%
 
 if (data$malignant == TRUE) {
   print("STEP 3b: CALLING COPY NUMBER ABBERATIONS")
-  if (data$sampling) {
-    seurat_sampled <- seurat[, data$samples]
+  if (exists("samples")) {
+    seurat_sampled <- seurat[, samples]
   } else {
     seurat_sampled <- seurat
   }

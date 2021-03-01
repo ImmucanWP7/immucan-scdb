@@ -33,6 +33,7 @@ options(future.globals.maxSize= 150000*1024^2)
 plan("multiprocess", workers = 12)
 seurat <- readRDS(object_path)
 data <- fromJSON("out/data.json")
+if (!is.na(data$nSample) & ncol(seurat) > data$nSample) {sub <- sample(ncol(seurat), data$nSample, replace = FALSE)}
 
 #makeReference, takes a Seurat Object and name of meta data column that contains the clusters. Returns a ranking of genes.
 makeReference = function(seuratObj, groupBy) {
@@ -95,11 +96,10 @@ for (i in temp) {
   ggsave(plot = p, filename = paste0("out/", i, ".png"), dpi = 300, width = 7, height = 6)
 }
 
-
 # DE
 print("STEP 2: CALCULATING MARKER GENES")
-if (data$sampling) {
-  seurat_sampled <- seurat[, data$samples]
+if (exists("subsamples")) {
+  seurat_sampled <- seurat[, subsamples]
 } else {
   seurat_sampled <- seurat
 }
@@ -148,7 +148,7 @@ temp <- AverageExpression(seurat, assays = "RNA")
 write.table(x = temp$RNA, file = "out/avgExpr_CHETAH.tsv", row.names = TRUE, sep = "\t")
 
 #Subsample object to 10k cells
-if (data$sampling) {seurat <- seurat[, data$samples]}
+if (exists("subsamples")) {seurat <- seurat[, subsamples]}
 
 # Export metadata with umap coordinates
 write.table(x = cbind(seurat@meta.data, seurat@reductions$umap@cell.embeddings), file = "out/metadata.tsv", row.names = TRUE, sep = "\t")

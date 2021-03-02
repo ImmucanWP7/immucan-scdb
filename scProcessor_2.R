@@ -80,20 +80,20 @@ temp <- colnames(seurat@meta.data)[tolower(colnames(seurat@meta.data)) %in% tolo
 for (i in temp) {
   if (is.numeric(seurat@meta.data[[i]]) == TRUE) {
     p <- FeaturePlot(seurat, features = i, reduction = "umap")
-    ggsave(plot = p, filename = paste0("out/", i, ".png"), dpi = 300, width = 7, height = 6)
+    ggsave(plot = p, filename = paste0("out/plots/", i, ".png"), dpi = 300, width = 7, height = 6)
   } else if (length(unique(seurat@meta.data[[i]])) <= 20) {
     p <- DimPlot(seurat, reduction = "umap", pt.size = 1, group.by = i, label = TRUE) + ggthemes::scale_color_tableau(palette = "Tableau 20")
-    ggsave(plot = p, filename = paste0("out/", i, ".png"), dpi = 300, width = 7, height = 6)
+    ggsave(plot = p, filename = paste0("out/plots/", i, ".png"), dpi = 300, width = 7, height = 6)
   } else {
     p <- DimPlot(seurat, reduction = "umap", pt.size = 1, group.by = i, label = TRUE)
-    ggsave(plot = p, filename = paste0("out/", i, ".png"), dpi = 300, width = 7, height = 6)
+    ggsave(plot = p, filename = paste0("out/plots/", i, ".png"), dpi = 300, width = 7, height = 6)
   }
 }
 
 temp <- colnames(seurat@meta.data)[tolower(colnames(seurat@meta.data)) %in% tolower(data$metadata)]
 for (i in temp) {
   p <- ggplot(seurat@meta.data, aes_string(x = "cell_ontology", fill = i)) + geom_bar(position = "fill") + RotatedAxis()
-  ggsave(plot = p, filename = paste0("out/", i, ".png"), dpi = 300, width = 7, height = 6)
+  ggsave(plot = p, filename = paste0("out/plots/", i, ".png"), dpi = 300, width = 7, height = 6)
 }
 
 # DE
@@ -129,7 +129,7 @@ write.table(geneIndex, "out/gene_index.tsv", row.names = TRUE, sep = "\t")
 print("STEP 4: SAVING RESULTS")
 #Seurat
 saveRDS(seurat, "out/harmony.rds")
-SaveH5Seurat(seurat, filename = "out/harmony.h5Seurat", overwrite = TRUE)
+#SaveH5Seurat(seurat, filename = "out/harmony.h5Seurat", overwrite = TRUE)
 #Convert("out/harmony.h5Seurat", dest = "h5ad", overwrite = TRUE)
 
 # Export average gene expression over cluster

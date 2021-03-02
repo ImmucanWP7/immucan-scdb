@@ -4,6 +4,10 @@ data = "out/data.json" #If data is already normalized or not, stored by check_se
 cellMarker_path = "/home/jordi_camps/IMMUcan/TME_markerGenes.xlsx"
 chetahClassifier_path = "/home/jordi_camps/IMMUcan/CHETAH_reference_updatedAnnotation.RData"
 verbose = FALSE
+if (!dir.exists("temp")) {dir.create("temp")}
+if (!dir.exists("temp/plots")) {dir.create("temp/plots")}
+if (!dir.exists("out")) {dir.create("out")}
+if (!dir.exists("out/plots")) {dir.create("out/plots")}
 
 # Load packages and set environment
 suppressPackageStartupMessages({
@@ -92,7 +96,7 @@ if (data$batch != FALSE) {
                       NoLegend() + 
                       ggtitle("After harmony"))
   p <- (p0 | p5) / (p1 | p3) / (p2 | p4)
-  ggsave(plot = p, filename = "out/Harmony.png")
+  ggsave(plot = p, filename = "out/plots/Harmony.png")
 } else {
   seurat <- seurat %>% 
     RunUMAP(reduction = "pca", dims = 1:data$pca_dims, a = .5, b = 1.2, verbose = verbose) %>%
@@ -118,7 +122,7 @@ print("Defining optimal cluster resolution")
     seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
     seurat.markers.unique <- seurat.markers[!duplicated(seurat.markers$gene) & seurat.markers$p_val_adj < 0.05, ]
     clust_num <- nlevels(seurat.markers$cluster)
-    clust_unique <- sum(table(seurat.markers.unique$cluster) > 10)
+    clust_unique <- sum(table(seurat.markers.unique$cluster) >= 10)
     if (i == 1) {
       diff1 <- clust_num - clust_unique
     } else {
@@ -145,7 +149,7 @@ p1 <- PlotCHETAH(input, return = TRUE)
 #nodes <- c("Node1" = "Immune", "Node2" = "Immune", "Node3" = "Lymphoid", "Node4" = "Lymphoid", "Node5" = "NKT", "Node6" = "T", "Node7" = "T", "Node8" = "Myeloid", "Node9" = "Macro/DC", "Node10"= "Stromal", "Node11" = "Stromal")
 #input$celltype_CHETAH <- plyr::revalue(input$celltype_CHETAH, replace = nodes[names(nodes) %in% input$celltype_CHETAH])
 seurat@meta.data$annotation_CHETAH <- input$celltype_CHETAH
-ggsave(plot = p1, filename = "out/CHETAH_classification.pdf", height = 6, width = 12)
+ggsave(plot = p1, filename = "out/plots/CHETAH_classification.pdf", height = 6, width = 12)
 
 ##CHETAH recommendation
 fraction_chetah <- seurat@meta.data %>%
@@ -189,7 +193,7 @@ if (data$malignant == TRUE) {
   p2 <- FeaturePlot(seurat, features = "EPCAM")
   p3 <- DimPlot(seurat, group.by = "seurat_clusters", label = TRUE) + NoLegend()
   p <- p1 + p2 + p3
-  ggsave(plot = p, filename = "out/copyKat_umap.pdf", height = 5, width = 15)
+  ggsave(plot = p, filename = "out/plots/copyKat_umap.pdf", height = 5, width = 15)
 
   ##copykat recommendation
   fraction_copykat <- seurat@meta.data %>%
@@ -234,10 +238,10 @@ for (i in as.character(na.omit(unique(cell.markers$cell_type)))) {
 #Idents(seurat) <- seurat$seurat_clusters #set seurat_clusters as idents
 temp <- AddModuleScore(seurat, features = markers)
 p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster[[:digit:]]", colnames(temp@meta.data))], group.by = "seurat_clusters", cluster.idents = TRUE) + scale_x_discrete(labels = names(markers)) + RotatedAxis()
-ggsave(plot = p, filename = "temp/Dotplot_seuratClusters_geneModules.png", dpi = 100, height = 12, width = 12)
+ggsave(plot = p, filename = "temp/plots/Dotplot_seuratClusters_geneModules.png", dpi = 100, height = 12, width = 12)
 
 p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip()
-ggsave(plot = p0, filename = "temp/Dotplot_seuratClusters_genes.png", dpi = 100, height = 12, width = 12)
+ggsave(plot = p0, filename = "temp/plots/Dotplot_seuratClusters_genes.png", dpi = 100, height = 12, width = 12)
 
 p1 <- AugmentPlot(DimPlot(seurat, label = TRUE, label.size = 12))
 cell.markers <- cell.markers[cell.markers$gene %in% rownames(seurat), ]
@@ -255,13 +259,13 @@ for (type in unique(cell.markers$category)) {
 
 temp <- table(seurat$seurat_clusters, seurat$annotation_CHETAH)
 temp <- apply(temp, 1, function(x) x / sum(x))
-pheatmap::pheatmap(temp, filename = "temp/cluster_comparison.pdf")
+pheatmap::pheatmap(temp, filename = "temp/plots/cluster_comparison.pdf")
 
 # Summary statistics
 
 print("STEP 5: CREATING SUMMARY STATISTICS")
 harmony_summary = data.frame(
-  "Input_file" = object_path,
+  "Input_file" = data$object_path,
   "Batch" = data$batch,
   "QC_features_min" = data$QC_feature_min,
   "QC_mito_max" = data$QC_mt_max,
@@ -274,7 +278,6 @@ harmony_summary = data.frame(
   "Cluster_resolution" = data$cluster_resolution
 )
 seurat@misc <- list(harmony_summary)
-write.csv(x = harmony_summary, file = "out/harmony_summary.csv", row.names = FALSE)
 
 # Save RDS and convert to h5ad with seuratdisk
 

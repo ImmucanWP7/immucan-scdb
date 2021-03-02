@@ -7,8 +7,10 @@ verbose = FALSE
 dir <- getwd()
 setwd(dir)
 print(dir)
-ifelse(!dir.exists("temp"), dir.create("temp"), "temp/ already exists")
-ifelse(!dir.exists("out"), dir.create("out"), "out/ already exists")
+if (!dir.exists("temp")) {dir.create("temp")}
+if (!dir.exists("temp/plots")) {dir.create("temp/plots")}
+if (!dir.exists("out")) {dir.create("out")}
+if (!dir.exists("out/plots")) {dir.create("out/plots")}
 
 suppressPackageStartupMessages({
   library(Seurat)
@@ -116,7 +118,7 @@ seurat_sampled <- seurat_sampled %>%
   FindNeighbors(dims = 1:2, k.param = 30, reduction = "umap", verbose = verbose)
 
 p <- ElbowPlot(seurat_sampled, ndims = data$pca_dims+20) + geom_vline(xintercept = data$pca_dims, color = "red") + ylab("STDEV PCA") + theme(axis.title.x = element_blank())
-ggsave(plot = p, filename = "temp/Elbow.png")
+ggsave(plot = p, filename = "temp/plots/Elbow.png")
 
 ## Compute the percentage of batch in cell neighbors
 batch_entropy <- list()
@@ -160,7 +162,7 @@ if (length(batch_var >= 1)) {
     p4 <- AugmentPlot(VlnPlot(object = seurat_sampled, features = "harmony_1", group.by = i, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
     p5 <- AugmentPlot(DimPlot(seurat_sampled, reduction = "umap", group.by = i, pt.size = .1) + NoLegend() + ggtitle("After harmony"))
     p <- (p0 | p5) / (p1 | p3) / (p2 | p4)
-    ggsave(plot = p, filename = paste0("temp/Harmony_", i, ".png"))
+    ggsave(plot = p, filename = paste0("temp/plots/Harmony_", i, ".png"))
     
     ## Compute the percentage of batch in cell neighbors
     neighbors <- list()
@@ -195,7 +197,7 @@ if (length(batch_var >= 1)) {
     geom_boxplot() +
     scale_y_continuous("Entropy") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  ggsave(plot = p, filename = "temp/batch_entropy.png", width = 10, height = 10)
+  ggsave(plot = p, filename = "temp/plots/batch_entropy.png", width = 10, height = 10)
 } else {
   ## Plot entropy over all batches
   batch_entropy <- as.data.frame(batch_entropy)
@@ -206,7 +208,7 @@ if (length(batch_var >= 1)) {
     geom_boxplot() +
     scale_y_continuous("Entropy") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  ggsave(plot = p, filename = "temp/batch_entropy.png", width = 10, height = 10)
+  ggsave(plot = p, filename = "temp/plots/batch_entropy.png", width = 10, height = 10)
 }
 
 # QC
@@ -242,7 +244,7 @@ if (length(batch_var) >= 1) {
       p6 <- AugmentPlot(DimPlot(seurat_sampled, group.by = i))
     }
     p <- (p1 + p2) / (p3 + p5) / (p4 + p6)
-    ggsave(plot = p, filename = paste0("temp/QC_", i, ".png"))
+    ggsave(plot = p, filename = paste0("temp/plots/QC_", i, ".png"))
   }
 } else {
   print("No batch effect in dataset!")
@@ -261,7 +263,7 @@ if (length(batch_var) >= 1) {
     scale_y_continuous("Mito", expand = c(0,0)) +
     theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text())
   p <- p1 / p2 / p3
-  ggsave(plot = p, filename = "temp/QC.png")
+  ggsave(plot = p, filename = "temp/plots/QC.png")
 }
 
 ## Save data.json

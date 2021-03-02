@@ -81,7 +81,7 @@ print("STEP 2a: ESTIMATING BATCH VARIABLES")
 
 ## Sample object to max nSample specified
 if (!is.na(data$nSample) & ncol(seurat) > data$nSample) {
-  samples <- sample(colnames(seurat), nSample, replace = FALSE)
+  samples <- sample(colnames(seurat), data$nSample, replace = FALSE)
   seurat_sampled <- seurat[, samples]
 } else {
   data$nSample <- NA

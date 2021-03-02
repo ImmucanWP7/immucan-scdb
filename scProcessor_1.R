@@ -1,23 +1,13 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)
-batch = args[1] #batch variable in the metadata slot if no batch fill in empty string
-QC_feature_min = 250 #Minimal features threshold
-QC_mt_max = 20 #Maximum mitochondrial content threshold
-pca_dims = 30 #Amount of PCA dimensions to use
-malignant = args[2]
-data = "temp/data.rds" #If data is already normalized or not, stored by check_seurat.R
-features_var = 2000 #Amount of variable features to select
-cluster_resolution = c(1) #At which resolutions to cluster the data
-verbose = FALSE
-object_path = "temp/raw.rds" #_raw.rds file
+data = "out/data.json" #If data is already normalized or not, stored by check_seurat.R
 cellMarker_path = "/home/jordi_camps/IMMUcan/TME_markerGenes.xlsx"
 chetahClassifier_path = "/home/jordi_camps/IMMUcan/CHETAH_reference_updatedAnnotation.RData"
-
-# Make and set directories
-dir <- getwd()
-setwd(dir)
-ifelse(!dir.exists("temp"), dir.create("temp"), "temp/ already exists")
-ifelse(!dir.exists("out"), dir.create("out"), "out/ already exists")
+verbose = FALSE
+if (!dir.exists("temp")) {dir.create("temp")}
+if (!dir.exists("temp/plots")) {dir.create("temp/plots")}
+if (!dir.exists("out")) {dir.create("out")}
+if (!dir.exists("out/plots")) {dir.create("out/plots")}
 
 # Load packages and set environment
 suppressPackageStartupMessages({
@@ -34,199 +24,132 @@ suppressPackageStartupMessages({
   library(DescTools)
   library(copykat)
   library(future)
+  library(jsonlite)
 })
-RNGkind(sample.kind = "Rounding")
+
+suppressWarnings(RNGkind(sample.kind = "Rounding"))
 set.seed(111)
 options(future.globals.maxSize= 150000*1024^2)
-plan("multiprocess", workers = 8)
+plan("multisession", workers = 4)
+
+# Make and set directories
+dir <- getwd()
+print(dir)
+setwd(dir)
+if (!file.exists("out/data.json")) {stop("first run check_seurat.R")}
+data <- fromJSON("out/data.json")
 
 # Recreate seurat object
 
-seurat <- readRDS(object_path)
-data <- readRDS(data)
-if (batch == "none") {
-  print("NO BATCH SPECIFIED => NO INTEGRATION")
-  batch = "orig.ident"
-}
+seurat_temp <- readRDS(data$object_path)
+seurat <- CreateSeuratObject(counts = seurat_temp[["RNA"]]@counts, meta.data = seurat_temp@meta.data, min.cells = 10, min.features = 200)
+if (length(data$batch) > 1) {stop("More than one batch specified, select the correct batch")}
+if (!"cluster_resolution" %in% names(data)) {data$cluster_resolution = seq(from = 0.4, to = 3, by = 0.1)}
+if (!is.na(data$nSample) & ncol(seurat) > data$nSample) {subsamples <- sample(ncol(seurat), data$nSample, replace = FALSE)}
 
 # QC
 
-print("STEP 1: QC")
+print("STEP 1a: QC")
 cells_before_QC <- ncol(seurat)
+bad_columns <- colnames(seurat@meta.data[, sapply(sapply(seurat@meta.data, unique), length) == 1, drop = FALSE])
+bad_cols <- paste(bad_columns, sep = ", ")
+print(paste0("Removing columns with only one value: ", bad_cols))
+seurat@meta.data <- seurat@meta.data[, !colnames(seurat@meta.data) %in% c(bad_columns)] #Remove all columns that have only one variable
 seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^Mt\\.|^MT\\.|^mt\\.|^Mt-|^MT-|^mt-")
-
-p1 <- AugmentPlot(VlnPlot(seurat, features = "nFeature_RNA", pt.size = 0.1, group.by = batch, log = TRUE)) + 
-  NoLegend() +
-  scale_y_log10("Genes", expand = c(0,0)) + 
-  geom_hline(yintercept = QC_feature_min, color = "red") + 
-  theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text(), axis.text.x = element_blank(), axis.ticks.x = element_blank())
-
-p2 <- AugmentPlot(VlnPlot(seurat, features = "nCount_RNA", pt.size = 0.1, group.by = batch, log = TRUE)) + 
-  NoLegend() + 
-  scale_y_log10("Counts", expand = c(0,0)) + 
-  theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text(), axis.text.x = element_blank(), axis.ticks.x = element_blank())
-
-p3 <- AugmentPlot(VlnPlot(seurat, features = "percent.mt", pt.size = 0.1, group.by = batch)) + 
-  NoLegend() +
-  geom_hline(yintercept = QC_mt_max, color = "red") + 
-  scale_y_continuous("Mito", expand = c(0,0)) +
-  theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text())
-
-seurat <- subset(seurat, subset = nFeature_RNA > QC_feature_min & percent.mt < QC_mt_max)
-
-# Entropy
-
-print("STEP 2a: MEASURING BATCH EFFECT")
+seurat <- subset(seurat, subset = nFeature_RNA > data$QC_feature_min & percent.mt < data$QC_mt_max)
 if (data$norm == FALSE) {
   seurat <- Seurat::NormalizeData(seurat, verbose = verbose)
-}
-seurat <- seurat %>% 
-  FindVariableFeatures(selection.method = "vst", nfeatures = features_var, verbose = verbose) %>% 
+} else {seurat[["RNA"]]@data <- seurat[["RNA"]]@counts}
+seurat <- suppressWarnings(seurat %>% 
+  FindVariableFeatures(selection.method = "vst", nfeatures = data$features_var, verbose = verbose) %>% 
   ScaleData(verbose = verbose) %>% 
-  RunPCA(pc.genes = seurat@var.genes, npcs = pca_dims+20, verbose = verbose) %>%
-  RunUMAP(dims = 1:pca_dims, a = .5, b = 1.2, verbose = verbose) %>%
-  FindNeighbors(dims = 1:2, k.param = 30, reduction = "umap", verbose = verbose)
-
-p4 <- ElbowPlot(seurat, ndims = pca_dims+20) + geom_vline(xintercept = pca_dims, color = "red") + ylab("STDEV PCA") + theme(axis.title.x = element_blank())
-p <- p4 / p1 / p2 / p3
-ggsave(plot = p, filename = "out/QC.png")
-
-p0 <- AugmentPlot(DimPlot(seurat, reduction = "umap", group.by = batch, pt.size = .1) + 
-                    NoLegend() + 
-                    ggtitle("Before harmony"))
-
-## Compute the percentage of batch in cell neighbors
-neighbors <- list()
-for (i in unique(seurat@meta.data[, batch])) {
-  temp <- rownames(seurat@meta.data[seurat@meta.data[ , batch] == i, ])
-  neighbors[[i]] <- rowSums(as.matrix(seurat@graphs$RNA_nn[, temp]))/30
-}
-neighbors <- as.data.frame(neighbors)
-
-## Compute entropy per cell
-entropy <- list()
-for (i in 1:nrow(neighbors)) {
-  entropy[[rownames(neighbors)[i]]] <- Entropy(neighbors[i, ])
-}
-entropy <- as.matrix(entropy)
-median_entropy <- median(as.numeric(entropy[,1]))
-
-entropy <- as.data.frame(entropy)
-p <- ggplot(entropy, aes(y = as.numeric(V1), x = 1)) +
-  geom_boxplot() +
-  scale_y_continuous("Entropy")
-ggsave(plot = p, filename = "out/entropy.png", width = 2, height = 4)
+  RunPCA(pc.genes = seurat@var.genes, npcs = data$pca_dims+20, verbose = verbose) %>%
+  RunUMAP(dims = 1:data$pca_dims, a = .5, b = 1.2, verbose = verbose))
 
 # Harmony
 
-if (median_entropy < 2) {
-  print("STEP 2b: INTEGRATING BATCH")
-  p1 <- AugmentPlot(DimPlot(object = seurat, reduction = "pca", pt.size = .1, group.by = batch) + NoLegend())
-  p2 <- AugmentPlot(VlnPlot(object = seurat, features = "PC_1", group.by = batch, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
+if (data$batch != FALSE) {
+  print("STEP 1b: INTEGRATING BATCH")
+  p0 <- AugmentPlot(DimPlot(seurat, reduction = "umap", group.by = data$batch, pt.size = .1) + 
+                      NoLegend() + 
+                      ggtitle("Before harmony"))
+  p1 <- AugmentPlot(DimPlot(object = seurat, reduction = "pca", pt.size = .1, group.by = data$batch) + NoLegend())
+  p2 <- AugmentPlot(VlnPlot(object = seurat, features = "PC_1", group.by = data$batch, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
   
+  seurat <- suppressWarnings(seurat %>% 
+    RunHarmony(data$batch, plot_convergence = FALSE, verbose = verbose))
+  
+  p3 <- AugmentPlot(DimPlot(object = seurat, reduction = "harmony", pt.size = .1, group.by = data$batch) + NoLegend())
+  p4 <- AugmentPlot(VlnPlot(object = seurat, features = "harmony_1", group.by = data$batch, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
+}
+
+# Dimensionality reduction and clustering
+print("STEP 2: CLUSTERING")
+  
+if (data$batch != FALSE) {
   seurat <- seurat %>% 
-    RunHarmony(batch, plot_convergence = FALSE, verbose = verbose)
-  
-  p3 <- AugmentPlot(DimPlot(object = seurat, reduction = "harmony", pt.size = .1, group.by = batch) + NoLegend())
-  p4 <- AugmentPlot(VlnPlot(object = seurat, features = "harmony_1", group.by = batch, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
-  
-  # Dimensionality reduction and clustering
-  
-  print("STEP 3: CLUSTERING")
-  seurat <- seurat %>% 
-    RunUMAP(reduction = "harmony", dims = 1:pca_dims, a = .5, b = 1.2, verbose = verbose) %>%
-    RunTSNE(reduction = "harmony", dims = 1:pca_dims, check_duplicates = verbose)  %>%
-    FindNeighbors(reduction = "harmony", dims = 1:pca_dims, verbose = verbose) %>% 
-    FindClusters(resolution = cluster_resolution, verbose = verbose) %>% 
-    identity()
-  
-  p5 <- AugmentPlot(DimPlot(seurat, reduction = "umap", group.by = batch, pt.size = .1) + 
+    RunUMAP(reduction = "harmony", dims = 1:data$pca_dims, a = .5, b = 1.2, verbose = verbose) %>%
+    RunTSNE(reduction = "harmony", dims = 1:data$pca_dims, check_duplicates = FALSE)  %>%
+    FindNeighbors(reduction = "harmony", dims = 1:data$pca_dims, verbose = verbose) %>% 
+    FindClusters(resolution = data$cluster_resolution, verbose = verbose)
+  p5 <- AugmentPlot(DimPlot(seurat, reduction = "umap", group.by = data$batch, pt.size = .1) + 
                       NoLegend() + 
                       ggtitle("After harmony"))
   p <- (p0 | p5) / (p1 | p3) / (p2 | p4)
-  ggsave(plot = p, filename = "out/Harmony.png")
+  ggsave(plot = p, filename = "out/plots/Harmony.png")
 } else {
-  print("STEP 3: CLUSTERING")
   seurat <- seurat %>% 
-    RunUMAP(reduction = "pca", dims = 1:pca_dims, a = .5, b = 1.2, verbose = verbose) %>%
-    RunTSNE(reduction = "pca", dims = 1:pca_dims, check_duplicates = verbose)  %>%
-    FindNeighbors(reduction = "pca", dims = 1:pca_dims, verbose = verbose) %>% 
-    FindClusters(resolution = cluster_resolution, verbose = verbose) %>% 
-    identity()
+    RunUMAP(reduction = "pca", dims = 1:data$pca_dims, a = .5, b = 1.2, verbose = verbose) %>%
+    RunTSNE(reduction = "pca", dims = 1:data$pca_dims, check_duplicates = FALSE)  %>%
+    FindNeighbors(reduction = "pca", dims = 1:data$pca_dims, verbose = verbose) %>% 
+    FindClusters(resolution = data$cluster_resolution, verbose = verbose)
 }
+
+if (length(data$cluster_resolution) > 1) {
+print("Defining optimal cluster resolution")
+  if (exists("subsamples")) {
+    seurat_sampled <- seurat[, subsamples]
+  } else {
+    seurat_sampled <- seurat
+  }
+  clusters <- seurat_sampled@meta.data[, grepl("RNA_snn_res.", colnames(seurat_sampled@meta.data))]
+  clusters <- apply(clusters, 2, as.numeric)
+  data$cluster_resolution <- data$cluster_resolution[!duplicated(apply(clusters, 2, max))]
+  diff2 = 0
+  for (i in seq_along(data$cluster_resolution)) {
+    print(paste0("Checking resolution ", data$cluster_resolution[i]))
+    Idents(seurat_sampled) <- seurat_sampled[[paste0("RNA_snn_res.", data$cluster_resolution[i])]]
+    seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
+    seurat.markers.unique <- seurat.markers[!duplicated(seurat.markers$gene) & seurat.markers$p_val_adj < 0.05, ]
+    clust_num <- nlevels(seurat.markers$cluster)
+    clust_unique <- sum(table(seurat.markers.unique$cluster) >= 10)
+    if (i == 1) {
+      diff1 <- clust_num - clust_unique
+    } else {
+      diff2 <- clust_num - clust_unique
+    }
+    if (diff2 > diff1) {
+        seurat$seurat_clusters <- seurat[[paste0("RNA_snn_res.", data$cluster_resolution[i-1])]]
+        data$cluster_resolution <- data$cluster_resolution[[i-1]]
+        break
+      }
+    }
+  }
+seurat@meta.data <- seurat@meta.data[, !grepl("RNA_snn_res.", colnames(seurat@meta.data))]
+Idents(seurat) <- seurat$seurat_clusters #Set seurat_clusters to Idents
 
 # Supervised annotation
 
-print("STEP 4: SUPERVISED ANNOTATION")
+print("STEP 3a: SUPERVISED ANNOTATION")
 load(chetahClassifier_path)
 input <- SingleCellExperiment(assays = list(counts = seurat[["RNA"]]@data),
                               reducedDims = SimpleList(TSNE = seurat@reductions$umap@cell.embeddings))
 input <- CHETAHclassifier(input = input, ref_cells = reference, n_genes = 500, thresh = 0.05)
-
 p1 <- PlotCHETAH(input, return = TRUE) 
 #nodes <- c("Node1" = "Immune", "Node2" = "Immune", "Node3" = "Lymphoid", "Node4" = "Lymphoid", "Node5" = "NKT", "Node6" = "T", "Node7" = "T", "Node8" = "Myeloid", "Node9" = "Macro/DC", "Node10"= "Stromal", "Node11" = "Stromal")
 #input$celltype_CHETAH <- plyr::revalue(input$celltype_CHETAH, replace = nodes[names(nodes) %in% input$celltype_CHETAH])
 seurat@meta.data$annotation_CHETAH <- input$celltype_CHETAH
-ggsave(plot = p1, filename = "out/CHETAH_classification.pdf", height = 6, width = 12)
-
-# Split object
-#Tcells <- c("T", "CD4 T cell", "CD8 T cell", "NK", "NKT", "reg. T cell")
-#Myeloid <- c("Myeloid", "Macro/DC", "Macrophage", "Dendritic")
-#seurat_T <- seurat[, seurat$annotation_CHETAH %in% Tcells]
-#seurat_myeloid <- seurat[, seurat$annotation_CHETAH %in% Myeloid]
-#seurat_T <- seurat_T %>% 
-#  FindVariableFeatures(selection.method = "vst", nfeatures = 2000, verbose=TRUE) %>% 
-#  ScaleData(verbose = TRUE) %>% 
-#  RunPCA(npcs = 30, verbose = TRUE) %>%
-#  RunUMAP(reduction = "harmony", dims = 1:10, a = .5, b = 1.2, verbose = TRUE) %>%
-#  #RunTSNE(reduction = "harmony", dims = 1:pca_dims, check_duplicates = FALSE)  #%>%
-#  FindNeighbors(reduction = "harmony", dims = 1:10, verbose = TRUE) %>% 
-#  FindClusters(resolution = 0.8, verbose = TRUE) %>% 
-#  identity()
-
-# copyKat
-
-if (malignant == TRUE) {
-  print("STEP 5: CALLING COPY NUMBER ABBERATIONS")
-  if (ncol(seurat) > 20000) {
-    samples <- sample(colnames(seurat), 20000, replace = FALSE)
-    seurat_sampled <- seurat[, samples]
-  } else {
-    seurat_sampled <- seurat
-  }
-  counts <- as.matrix(seurat_sampled[["RNA"]]@counts)
-  normal_cells <- rownames(seurat_sampled@meta.data[seurat_sampled$annotation_CHETAH %in% c("CD8 T cell", "Macrophage"), ])
-  if (length(normal_cells) > 100) {
-    copykat.test <- copykat(rawmat=counts, id.type="S", ngene.chr=5, win.size=25, KS.cut=0.15, distance="euclidean", norm.cell.names=normal_cells, n.cores=4)
-  } else {
-    copykat.test <- copykat(rawmat=counts, id.type="S", ngene.chr=5, win.size=25, KS.cut=0.15, distance="euclidean", norm.cell.names="", n.cores=4)
-  }
-  pred.test <- data.frame(copykat.test$prediction)
-  seurat@meta.data <- merge(seurat@meta.data, pred.test[, "copykat.pred", drop = FALSE], by = "row.names", all = TRUE) %>% 
-    tibble::column_to_rownames("Row.names")
-  p1 <- DimPlot(seurat, group.by = "copykat.pred")
-  p2 <- FeaturePlot(seurat, features = "EPCAM")
-  p3 <- DimPlot(seurat, group.by = "seurat_clusters", label = TRUE) + NoLegend()
-  p <- p1 + p2 + p3
-  ggsave(plot = p, filename = "out/copyKat_umap.pdf", height = 5, width = 15)
-}
-
-# Plot cell markers
-
-print("STEP 6: CREATING MARKER GENE PLOTS")
-cell.markers <- readxl::read_excel(cellMarker_path)
-markers <- list()
-for (i in as.character(na.omit(unique(cell.markers$cell_type)))) {
-  temp <- rownames(seurat)[rownames(seurat) %in% na.omit(cell.markers[cell.markers$cell_type == i, "gene", drop = TRUE])]
-  if (length(temp) > 0) {
-    markers[[i]] <- temp
-  }
-}
-
-temp <- AddModuleScore(seurat, features = markers)
-p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster[[:digit:]]", colnames(temp@meta.data))], cluster.idents = TRUE) + scale_x_discrete(labels = names(markers)) + RotatedAxis()
-ggsave(plot = p, filename = "temp/Dotplot_seuratClusters_geneModules.png", dpi = 100, height = 12, width = 12)
-p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip() + NoLegend()
+ggsave(plot = p1, filename = "out/plots/CHETAH_classification.pdf", height = 6, width = 12)
 
 ##CHETAH recommendation
 fraction_chetah <- seurat@meta.data %>%
@@ -237,7 +160,41 @@ fraction_chetah <- seurat@meta.data %>%
   arrange(desc(fraction_CHETAH), .by_group = TRUE) %>%
   slice_head(n = 1)
 
-if (malignant == TRUE) {
+# copyKat
+
+if (data$malignant == TRUE) {
+  print("STEP 3b: CALLING COPY NUMBER ABBERATIONS")
+  if (exists("subsamples")) {
+    seurat_sampled <- seurat[, subsamples]
+  } else {
+    seurat_sampled <- seurat
+  }
+  counts <- as.matrix(seurat_sampled[["RNA"]]@counts)
+  if (is.na(data$normal_cells)) {
+    normal_cells <- rownames(seurat_sampled@meta.data[seurat_sampled$annotation_CHETAH %in% c("Macrophage"), ])
+    print("Running copykat with Macrophages as normal cells")
+    copykat.test <- copykat(rawmat=counts, id.type="S", ngene.chr=5, win.size=25, KS.cut=0.15, distance="euclidean", norm.cell.names=normal_cells, n.cores=4)
+  } else if (data$normal_cells == FALSE) {
+    print("Running copykat without normal cells")
+    copykat.test <- copykat(rawmat=counts, id.type="S", ngene.chr=5, win.size=25, KS.cut=0.15, distance="euclidean", norm.cell.names="", n.cores=4)
+  } else {
+    normal_cells <- rownames(seurat_sampled@meta.data[seurat_sampled$annotation_CHETAH %in% c(data$normal_cells), ])
+    print(paste0("Running copykat with ", data$normal_cells, " as normal cells"))
+    copykat.test <- copykat(rawmat=counts, id.type="S", ngene.chr=5, win.size=25, KS.cut=0.15, distance="euclidean", norm.cell.names=normal_cells, n.cores=4)
+  }
+  pred.test <- data.frame(copykat.test$prediction)
+  pred.test <- pred.test[, "copykat.pred", drop = FALSE]
+  seurat@meta.data <- seurat@meta.data %>%
+    tibble::rownames_to_column("cell") %>%
+    left_join(tibble::rownames_to_column(pred.test, "cell"), by = "cell") %>%
+    tibble::column_to_rownames("cell")
+  
+  p1 <- DimPlot(seurat, group.by = "copykat.pred")
+  p2 <- FeaturePlot(seurat, features = "EPCAM")
+  p3 <- DimPlot(seurat, group.by = "seurat_clusters", label = TRUE) + NoLegend()
+  p <- p1 + p2 + p3
+  ggsave(plot = p, filename = "out/plots/copyKat_umap.pdf", height = 5, width = 15)
+
   ##copykat recommendation
   fraction_copykat <- seurat@meta.data %>%
     group_by(seurat_clusters, copykat.pred) %>%
@@ -249,10 +206,13 @@ if (malignant == TRUE) {
     select(-nCells_copykat, -fraction_copykat)
   
   annotation <- inner_join(fraction_chetah, fraction_copykat, by = "seurat_clusters")
-  annotation$abbreviation <- ""
+  annotation$abbreviation <- as.character("")
+  annotation[annotation$fraction_CHETAH >= .8, "abbreviation"] <- annotation[annotation$fraction_CHETAH >= .8, "annotation_CHETAH"]
+  annotation[annotation$copykat.pred == "aneuploid", "abbreviation"] <- "mal"
 } else {
   annotation <- fraction_chetah
-  annotation$abbreviation <- ""
+  annotation$abbreviation <- as.character("")
+  annotation[annotation$fraction_CHETAH >= .8, "abbreviation"] <- annotation[annotation$fraction_CHETAH >= .8, "annotation_CHETAH"]
 }
 
 ##Create annotation.xlsx
@@ -263,8 +223,27 @@ if (!file.exists("out/annotation.xlsx")) {
   write.xlsx(x = annotation, "out/annotation_copy.xlsx")
 }
 
-ggsave(plot = p0, filename = "temp/Dotplot_seuratClusters_genes.png", dpi = 100, height = 12, width = 12)
-p1 <- AugmentPlot(DimPlot(seurat, group.by = "seurat_clusters", label = TRUE, label.size = 12))
+# Plot cell markers
+
+print("STEP 4: CREATING MARKER GENE PLOTS")
+cell.markers <- readxl::read_excel(cellMarker_path)
+markers <- list()
+for (i in as.character(na.omit(unique(cell.markers$cell_type)))) {
+  temp <- rownames(seurat)[rownames(seurat) %in% na.omit(cell.markers[cell.markers$cell_type == i, "gene", drop = TRUE])]
+  if (length(temp) > 0) {
+    markers[[i]] <- temp
+  }
+}
+
+#Idents(seurat) <- seurat$seurat_clusters #set seurat_clusters as idents
+temp <- AddModuleScore(seurat, features = markers)
+p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster[[:digit:]]", colnames(temp@meta.data))], group.by = "seurat_clusters", cluster.idents = TRUE) + scale_x_discrete(labels = names(markers)) + RotatedAxis()
+ggsave(plot = p, filename = "temp/plots/Dotplot_seuratClusters_geneModules.png", dpi = 100, height = 12, width = 12)
+
+p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip()
+ggsave(plot = p0, filename = "temp/plots/Dotplot_seuratClusters_genes.png", dpi = 100, height = 12, width = 12)
+
+p1 <- AugmentPlot(DimPlot(seurat, label = TRUE, label.size = 12))
 cell.markers <- cell.markers[cell.markers$gene %in% rownames(seurat), ]
 for (type in unique(cell.markers$category)) {
   p2 <- FeaturePlot(seurat, features = unique(cell.markers[cell.markers$category == type, ]$gene), pt.size = .1)
@@ -275,34 +254,35 @@ for (type in unique(cell.markers$category)) {
   BBB
   "
   p <- p1 + p2 + p3 + plot_layout(design = layout)
-  ggsave(plot = p, filename = paste0("temp/", type, ".png"), height = 30, width = 20, dpi = 100)
+  ggsave(plot = p, filename = paste0("temp/plots/", type, ".png"), height = 30, width = 20, dpi = 100)
 }
 
 temp <- table(seurat$seurat_clusters, seurat$annotation_CHETAH)
 temp <- apply(temp, 1, function(x) x / sum(x))
-pheatmap::pheatmap(temp, filename = "temp/cluster_comparison.pdf")
+pheatmap::pheatmap(temp, filename = "temp/plots/cluster_comparison.pdf")
 
 # Summary statistics
 
-print("STEP 7: CREATING SUMMARY STATISTICS")
+print("STEP 5: CREATING SUMMARY STATISTICS")
 harmony_summary = data.frame(
-  "Input_file" = object_path,
-  "Batch" = batch,
-  "QC_features_min" = QC_feature_min,
-  "QC_mito_max" = QC_mt_max,
-  "Variable_features" = features_var,
-  "PCA_dimensions" = pca_dims,
+  "Input_file" = data$object_path,
+  "Batch" = data$batch,
+  "QC_features_min" = data$QC_feature_min,
+  "QC_mito_max" = data$QC_mt_max,
+  "Variable_features" = data$features_var,
+  "PCA_dimensions" = data$pca_dims,
   "Amount_genes" = nrow(seurat),
   "Genes_detected_per_cell" = median(seurat@meta.data$nFeature_RNA),
   "Cells_before_QC" = cells_before_QC,
   "Cells_after_QC" = ncol(seurat),
-  "Entropy" = median_entropy
+  "Cluster_resolution" = data$cluster_resolution
 )
 seurat@misc <- list(harmony_summary)
-write.csv(x = harmony_summary, file = "out/harmony_summary.csv", row.names = FALSE)
 
 # Save RDS and convert to h5ad with seuratdisk
 
-print("STEP 8: SAVING RESULTS")
+print("STEP 6: SAVING RESULTS")
 saveRDS(seurat, paste0("temp/harmony.rds"))
+data <- toJSON(data)
+write(data, "out/data.json")
 print("ALL DONE")

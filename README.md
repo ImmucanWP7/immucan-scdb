@@ -3,9 +3,7 @@
 scProcessor is used for the processing of scRNAseq datasets in the IMMUcan scDB. It runs on R and is mostly based on the Seurat package.
 
 - Quality control
-- Batch effect 
-  - Measure (entropy based)
-  - Correct (Harmony)
+- Measure and correct batch effect (harmony)
 - Clustering optimization
 - Supervised annotation (CHETAH)
 - CNA calling (copyKat)

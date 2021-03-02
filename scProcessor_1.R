@@ -52,7 +52,8 @@ if (!is.na(data$nSample) & ncol(seurat) > data$nSample) {subsamples <- sample(nc
 print("STEP 1a: QC")
 cells_before_QC <- ncol(seurat)
 bad_columns <- colnames(seurat@meta.data[, sapply(sapply(seurat@meta.data, unique), length) == 1, drop = FALSE])
-print(paste0("Removing columns with only one value: ", c(bad_columns)))
+bad_cols <- paste(bad_columns, sep = ", ")
+print(paste0("Removing columns with only one value: ", bad_cols))
 seurat@meta.data <- seurat@meta.data[, !colnames(seurat@meta.data) %in% c(bad_columns)] #Remove all columns that have only one variable
 seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^Mt\\.|^MT\\.|^mt\\.|^Mt-|^MT-|^mt-")
 seurat <- subset(seurat, subset = nFeature_RNA > data$QC_feature_min & percent.mt < data$QC_mt_max)
@@ -75,9 +76,8 @@ if (data$batch != FALSE) {
   p1 <- AugmentPlot(DimPlot(object = seurat, reduction = "pca", pt.size = .1, group.by = data$batch) + NoLegend())
   p2 <- AugmentPlot(VlnPlot(object = seurat, features = "PC_1", group.by = data$batch, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
   
-  seurat <- seurat %>% 
-    RunHarmony(data$batch, plot_convergence = FALSE, verbose = verbose) %>%
-    identity()
+  seurat <- suppressWarnings(seurat %>% 
+    RunHarmony(data$batch, plot_convergence = FALSE, verbose = verbose))
   
   p3 <- AugmentPlot(DimPlot(object = seurat, reduction = "harmony", pt.size = .1, group.by = data$batch) + NoLegend())
   p4 <- AugmentPlot(VlnPlot(object = seurat, features = "harmony_1", group.by = data$batch, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
@@ -254,7 +254,7 @@ for (type in unique(cell.markers$category)) {
   BBB
   "
   p <- p1 + p2 + p3 + plot_layout(design = layout)
-  ggsave(plot = p, filename = paste0("temp/", type, ".png"), height = 30, width = 20, dpi = 100)
+  ggsave(plot = p, filename = paste0("temp/plots/", type, ".png"), height = 30, width = 20, dpi = 100)
 }
 
 temp <- table(seurat$seurat_clusters, seurat$annotation_CHETAH)

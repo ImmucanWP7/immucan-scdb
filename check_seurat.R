@@ -8,7 +8,7 @@ dir <- getwd()
 setwd(dir)
 print(dir)
 if (!dir.exists("temp")) {dir.create("temp")}
-if (!dir.exists("temp/plots")) {dir.create("temp/plots")}
+if (!dir.exists("temp/QC")) {dir.create("temp/QC")}
 if (!dir.exists("out")) {dir.create("out")}
 if (!dir.exists("out/plots")) {dir.create("out/plots")}
 
@@ -54,8 +54,7 @@ if (file.exists("out/data.json")) {
   data$annotation = c("seurat_clusters","annotation_CHETAH","annotation_major","annotation_immune","annotation_minor", colnames(seurat@meta.data)[grepl("Cluster|cluster|author|Author|Annotation|annotation|Cell_type|cell_type", colnames(seurat@meta.data))])
 }
 
-print(paste0("nCell = ", ncol(seurat)))
-print(paste0("nGene = ", nrow(seurat)))
+print(paste0("nCell = ", ncol(seurat), " / ", "nGene = ", nrow(seurat)))
 
 if (sum(colnames(seurat) == rownames(seurat@meta.data)) == ncol(seurat)) {
   print("Cell IDs linked correctly")
@@ -80,13 +79,13 @@ dplyr::glimpse(seurat@meta.data)
 print("STEP 2a: ESTIMATING BATCH VARIABLES")
 
 ## Sample object to max nSample specified
-if (!is.na(data$nSample) & ncol(seurat) > data$nSample) {
-  samples <- sample(colnames(seurat), data$nSample, replace = FALSE)
-  seurat_sampled <- seurat[, samples]
-} else {
-  data$nSample <- NA
+#if (!is.na(data$nSample) & ncol(seurat) > data$nSample) {
+#  samples <- sample(colnames(seurat), data$nSample, replace = FALSE)
+#  seurat_sampled <- seurat[, samples]
+#} else {
+#  data$nSample <- NA
   seurat_sampled <- seurat
-}
+#}
 
 ## Remove bad quality cells
 seurat_sampled <- subset(seurat_sampled, subset = nFeature_RNA > data$QC_feature_min & percent.mt < data$QC_mt_max)
@@ -117,8 +116,7 @@ seurat_sampled <- seurat_sampled %>%
   RunUMAP(dims = 1:data$pca_dims, a = .5, b = 1.2, verbose = verbose) %>%
   FindNeighbors(dims = 1:2, k.param = 30, reduction = "umap", verbose = verbose)
 
-p <- ElbowPlot(seurat_sampled, ndims = data$pca_dims+20) + geom_vline(xintercept = data$pca_dims, color = "red") + ylab("STDEV PCA") + theme(axis.title.x = element_blank())
-ggsave(plot = p, filename = "temp/plots/Elbow.png")
+p_lbw <- ElbowPlot(seurat_sampled, ndims = data$pca_dims+20) + geom_vline(xintercept = data$pca_dims, color = "red") + ylab("STDEV PCA") + theme(axis.title.x = element_blank())
 
 ## Compute the percentage of batch in cell neighbors
 batch_entropy <- list()
@@ -138,31 +136,31 @@ batch_entropy <- do.call(cbind, batch_entropy)
 batch_var <- list()
 for (i in colnames(batch_entropy)) {
   if (median(as.numeric(batch_entropy[, i])) < 2) {
-    print(paste0("Possible batch column: ", i))
     batch_var[[i]] <- median(as.numeric(batch_entropy[, i]))
   }
 }
+batch_var <- batch_var[!duplicated(batch_var)]
+batches <- paste(names(batch_var), sep = ", ")
+print(paste0("Possible batch(es): ", batches))
 
 # Run harmony
 
 if (length(batch_var >= 1)) {
   print("STEP 2b: RUN HARMONY")
   batch_harmony <- list()
+  p0 <- AugmentPlot(DimPlot(seurat_sampled, reduction = "umap", group.by = i, pt.size = .1) + NoLegend() + ggtitle("Before harmony"))
+  p1 <- AugmentPlot(DimPlot(object = seurat_sampled, reduction = "pca", group.by = i, pt.size = .1) + NoLegend())
+  
   for (i in names(batch_var)) {
-    p0 <- AugmentPlot(DimPlot(seurat_sampled, reduction = "umap", group.by = i, pt.size = .1) + NoLegend() + ggtitle("Before harmony"))
-    p1 <- AugmentPlot(DimPlot(object = seurat_sampled, reduction = "pca", group.by = i, pt.size = .1) + NoLegend())
-    p2 <- AugmentPlot(VlnPlot(object = seurat_sampled, features = "PC_1", group.by = i, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
-    
     seurat_sampled <- seurat_sampled %>%
       RunHarmony(i, plot_convergence = FALSE, verbose = verbose) %>%
       RunUMAP(reduction = "harmony", dims = 1:data$pca_dims, a = .5, b = 1.2, verbose = verbose) %>%
       FindNeighbors(dims = 1:2, k.param = 30, reduction = "umap", verbose = verbose)
     
     p3 <- AugmentPlot(DimPlot(object = seurat_sampled, reduction = "harmony", group.by = i, pt.size = .1) + NoLegend())
-    p4 <- AugmentPlot(VlnPlot(object = seurat_sampled, features = "harmony_1", group.by = i, pt.size = .1) + NoLegend() + theme(plot.title = element_blank()))
-    p5 <- AugmentPlot(DimPlot(seurat_sampled, reduction = "umap", group.by = i, pt.size = .1) + NoLegend() + ggtitle("After harmony"))
-    p <- (p0 | p5) / (p1 | p3) / (p2 | p4)
-    ggsave(plot = p, filename = paste0("temp/plots/Harmony_", i, ".png"))
+    p2 <- AugmentPlot(DimPlot(seurat_sampled, reduction = "umap", group.by = i, pt.size = .1) + NoLegend() + ggtitle("After harmony"))
+    p <- (p0 | p2) / (p1 | p3)
+    ggsave(plot = p, filename = paste0("temp/QC/Harmony_", i, ".png"))
     
     ## Compute the percentage of batch in cell neighbors
     neighbors <- list()
@@ -197,7 +195,7 @@ if (length(batch_var >= 1)) {
     geom_boxplot() +
     scale_y_continuous("Entropy") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  ggsave(plot = p, filename = "temp/plots/batch_entropy.png", width = 10, height = 10)
+  ggsave(plot = p, filename = "temp/QC/batch_entropy.png", width = 10, height = 10)
 } else {
   ## Plot entropy over all batches
   batch_entropy <- as.data.frame(batch_entropy)
@@ -208,14 +206,13 @@ if (length(batch_var >= 1)) {
     geom_boxplot() +
     scale_y_continuous("Entropy") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  ggsave(plot = p, filename = "temp/plots/batch_entropy.png", width = 10, height = 10)
+  ggsave(plot = p, filename = "temp/QC/batch_entropy.png", width = 10, height = 10)
 }
 
 # QC
 print("STEP 3: CREATE QC PLOTS")
 if (length(batch_var) >= 1) {
   for (i in names(batch_var)) {
-    p1 <- DimPlot(seurat_sampled, reduction = "pca", pt.size = .1, group.by = i, label = TRUE) + NoLegend()
     p2 <- DimPlot(seurat_sampled, reduction = "umap", pt.size = .1, group.by = i, label = TRUE) + NoLegend()
     p3 <- AugmentPlot(VlnPlot(seurat, features = "nFeature_RNA", pt.size = 0.1, group.by = i, log = TRUE)) + 
       NoLegend() +
@@ -243,8 +240,8 @@ if (length(batch_var) >= 1) {
     } else {
       p6 <- AugmentPlot(DimPlot(seurat_sampled, group.by = i))
     }
-    p <- (p1 + p2) / (p3 + p5) / (p4 + p6)
-    ggsave(plot = p, filename = paste0("temp/plots/QC_", i, ".png"))
+    p <- (p_lbw + p2) / (p3 + p5) / (p4 + p6)
+    ggsave(plot = p, filename = paste0("temp/QC/QC_", i, ".png"))
   }
 } else {
   print("No batch effect in dataset!")
@@ -262,8 +259,8 @@ if (length(batch_var) >= 1) {
     geom_hline(yintercept = data$QC_mt_max, color = "red") + 
     scale_y_continuous("Mito", expand = c(0,0)) +
     theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text())
-  p <- p1 / p2 / p3
-  ggsave(plot = p, filename = "temp/plots/QC.png")
+  p <- p_lbw /  p1 / p2 / p3
+  ggsave(plot = p, filename = "temp/QC/QC.png")
 }
 
 ## Save data.json

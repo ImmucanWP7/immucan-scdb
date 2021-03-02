@@ -36,11 +36,10 @@ Change the paths to files provided in the script
 ## Run scProcessor
 The core of scProcessor are three processing scripts.
 
-### 1. check_seurat.R
+### 1. check_seurat.R: check seurat object and estimate batch
 
 - It takes a Seurat object as input (in the future this will be extended to other file formats)
 - This step is optional, if data.json is filled in you can immediately run scProcessor_1
-- Steps:
   1. Check validity of seurat object
   2. Estimate batch variable
   3. Return QC plots (in temp)
@@ -70,10 +69,8 @@ Rscript check_seurat.R [SEURAT] [BATCH]
   - **annotation**: columns in meta.data that contains annotation information 
   - **metadata**: other important columns contained in the meta.data slot e.g. *biopsy, sample_id, treatment ...*
 
-### 3. scProcessor_1
+### 3. scProcessor_1: the main processing script
 
-- The main processing script
-- Steps:
   1. QC
   2. Batch integration and clustering
   3. Supervised classification and CNA calling
@@ -88,19 +85,17 @@ Rscript check_seurat.R [SEURAT] [BATCH]
 - In out/annotation.xlsx, fill in cell types as defined in the abbreviation column of cell_ontology.xlsx
 
 
-### 5. scProcessor_2
+### 5. scProcessor_2: link to cell ontology and create all output files
 
-- Link to cell ontology and create all output files
-Steps:
   1. Links cell ontology
   2. Differential expression
   3. Creates output files for SIB scRNAseq interface
-    - AverageExpression matrices and DE_results per annotation level
-    - geneIndex.tsv
-    - Metadata.tsv
-    - cellCount.tsv
-    - harmony.rds
-    - cellxgene.h5ad
+      - AverageExpression matrices and DE_results per annotation level
+      - geneIndex.tsv
+      - Metadata.tsv
+      - cellCount.tsv
+      - harmony.rds
+      - cellxgene.h5ad
 
 ### 6. Create checksum file to send to SIB
 

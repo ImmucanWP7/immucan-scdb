@@ -1,9 +1,15 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly=TRUE)
 object_path = "temp/harmony.rds" #harmony.rds file
-annotationFile_path = "out/annotation.xlsx" #path to annotation file
+if (file.exists("out/annotation.xlsx")) {
+  annotationFile_path = "out/annotation.xlsx" #path to annotation file
+} else {annotationFile_path = "out/annotation.xls"} #path to annotation file
 cellOntology_path = "/home/jordi_camps/IMMUcan/cell_ontology.xlsx"
 verbose = FALSE
+if (!dir.exists("temp")) {dir.create("temp")}
+if (!dir.exists("temp/plots")) {dir.create("temp/plots")}
+if (!dir.exists("out")) {dir.create("out")}
+if (!dir.exists("out/plots")) {dir.create("out/plots")}
 
 dir <- getwd()
 setwd(dir)
@@ -147,14 +153,17 @@ Idents(seurat) <- seurat$annotation_CHETAH
 temp <- AverageExpression(seurat, assays = "RNA")
 write.table(x = temp$RNA, file = "out/avgExpr_CHETAH.tsv", row.names = TRUE, sep = "\t")
 
-#Subsample object to 10k cells
-if (exists("subsamples")) {seurat <- seurat[, subsamples]}
-
-# Export metadata with umap coordinates
-write.table(x = cbind(seurat@meta.data, seurat@reductions$umap@cell.embeddings), file = "out/metadata.tsv", row.names = TRUE, sep = "\t")
-
-Idents(seurat) <- seurat$cell_ontology
+Idents(seurat) <- seurat$annotation_minor
 seurat@meta.data <- seurat@meta.data[, !grepl("RNA_snn_res|abbreviation|cell_id|cell.id|cell_ontology", colnames(seurat@meta.data))]
 
 # Convert to h5ad with sceasy for immediate use with cellxgene
 sceasy::convertFormat(seurat, from="seurat", to="anndata", outFile= "out/cellxgene.h5ad")
+
+#Subsample object to 10k cells
+if (exists("subsamples")) {seurat <- seurat[, subsamples]}
+
+# Export metadata with umap coordinates
+write.table(x = cbind(seurat@meta.data, seurat@reductions$umap@cell.embeddings), file = "out/metadata_10k.tsv", row.names = TRUE, sep = "\t")
+
+# Convert to h5ad with sceasy for immediate use with cellxgene
+sceasy::convertFormat(seurat, from="seurat", to="anndata", outFile= "out/cellxgene_10k.h5ad")

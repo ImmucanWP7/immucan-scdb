@@ -5,7 +5,7 @@ cellMarker_path = "/home/jordi_camps/IMMUcan/TME_markerGenes.xlsx"
 chetahClassifier_path = "/home/jordi_camps/IMMUcan/CHETAH_reference_updatedAnnotation.RData"
 verbose = FALSE
 if (!dir.exists("temp")) {dir.create("temp")}
-if (!dir.exists("temp/plots")) {dir.create("temp/plots")}
+if (!dir.exists("temp/annotation")) {dir.create("temp/annotation")}
 if (!dir.exists("out")) {dir.create("out")}
 if (!dir.exists("out/plots")) {dir.create("out/plots")}
 
@@ -115,26 +115,40 @@ print("Defining optimal cluster resolution")
   clusters <- seurat_sampled@meta.data[, grepl("RNA_snn_res.", colnames(seurat_sampled@meta.data))]
   clusters <- apply(clusters, 2, as.numeric)
   data$cluster_resolution <- data$cluster_resolution[!duplicated(apply(clusters, 2, max))]
-  diff2 = 0
+  #diff2 = 0
   for (i in seq_along(data$cluster_resolution)) {
-    print(paste0("Checking resolution ", data$cluster_resolution[i]))
     Idents(seurat_sampled) <- seurat_sampled[[paste0("RNA_snn_res.", data$cluster_resolution[i])]]
-    seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
-    seurat.markers.unique <- seurat.markers[!duplicated(seurat.markers$gene) & seurat.markers$p_val_adj < 0.05, ]
-    clust_num <- nlevels(seurat.markers$cluster)
-    clust_unique <- sum(table(seurat.markers.unique$cluster) >= 10)
     if (i == 1) {
+      seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
+      seurat.markers.unique <- seurat.markers[!duplicated(seurat.markers$gene) & seurat.markers$p_val_adj < 0.05, ]
+      clust_num <- nlevels(seurat.markers$cluster)
+      clust_unique <- sum(table(seurat.markers.unique$cluster) >= 10)
       diff1 <- clust_num - clust_unique
     } else {
-      diff2 <- clust_num - clust_unique
-    }
-    if (diff2 > diff1) {
+      temp <- table(seurat_sampled[[paste0("RNA_snn_res.", data$cluster_resolution[i-1]), drop = TRUE]], seurat_sampled[[paste0("RNA_snn_res.", data$cluster_resolution[i]), drop = TRUE]])
+      temp2 <- t(apply(temp, 1, function(x) x / sum(x)))
+      temp3 <- apply(temp2, 2, function(x) x < .9 & x > 0)
+      clust_test <- levels(seurat_sampled[[paste0("RNA_snn_res.", data$cluster_resolution[i]), drop = TRUE]])[colSums(temp3) == 1]
+      seurat.markers <- list()
+      for (c in seq_along(clust_test)) {
+        seurat.markers[[clust_test[c]]] <- FindMarkers(seurat_sampled, ident.1 = clust_test[c], ident.2 = NULL, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
+      }
+      seurat.markers <- do.call(rbind, seurat.markers) %>%
+        tibble::rownames_to_column("row") %>%
+        tidyr::separate(row, c("cluster", "gene"), remove = FALSE, sep = "\\.") %>%
+        tibble::column_to_rownames("row")
+      seurat.markers.unique <- seurat.markers[!duplicated(seurat.markers$gene) & seurat.markers$p_val_adj < 0.05, ]
+      clust_unique <- sum(table(seurat.markers.unique$cluster) >= 10)
+      diff2 <- length(clust_test) - clust_unique
+      if (diff2 > diff1) {
+        print(paste0("Optimal cluster resolution: ", data$cluster_resolution[i-1]))
         seurat$seurat_clusters <- seurat[[paste0("RNA_snn_res.", data$cluster_resolution[i-1])]]
         data$cluster_resolution <- data$cluster_resolution[[i-1]]
         break
       }
     }
   }
+}
 seurat@meta.data <- seurat@meta.data[, !grepl("RNA_snn_res.", colnames(seurat@meta.data))]
 Idents(seurat) <- seurat$seurat_clusters #Set seurat_clusters to Idents
 
@@ -238,10 +252,10 @@ for (i in as.character(na.omit(unique(cell.markers$cell_type)))) {
 #Idents(seurat) <- seurat$seurat_clusters #set seurat_clusters as idents
 temp <- AddModuleScore(seurat, features = markers)
 p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster[[:digit:]]", colnames(temp@meta.data))], group.by = "seurat_clusters", cluster.idents = TRUE) + scale_x_discrete(labels = names(markers)) + RotatedAxis()
-ggsave(plot = p, filename = "temp/plots/Dotplot_seuratClusters_geneModules.png", dpi = 100, height = 12, width = 12)
+ggsave(plot = p, filename = "temp/annotation/Dotplot_seuratClusters_geneModules.png", dpi = 100, height = 12, width = 12)
 
 p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip()
-ggsave(plot = p0, filename = "temp/plots/Dotplot_seuratClusters_genes.png", dpi = 100, height = 12, width = 12)
+ggsave(plot = p0, filename = "temp/annotation/Dotplot_seuratClusters_genes.png", dpi = 100, height = 12, width = 12)
 
 p1 <- AugmentPlot(DimPlot(seurat, label = TRUE, label.size = 12))
 cell.markers <- cell.markers[cell.markers$gene %in% rownames(seurat), ]
@@ -254,12 +268,12 @@ for (type in unique(cell.markers$category)) {
   BBB
   "
   p <- p1 + p2 + p3 + plot_layout(design = layout)
-  ggsave(plot = p, filename = paste0("temp/plots/", type, ".png"), height = 30, width = 20, dpi = 100)
+  ggsave(plot = p, filename = paste0("temp/annotation/", type, ".png"), height = 30, width = 20, dpi = 100)
 }
 
 temp <- table(seurat$seurat_clusters, seurat$annotation_CHETAH)
 temp <- apply(temp, 1, function(x) x / sum(x))
-pheatmap::pheatmap(temp, filename = "temp/plots/cluster_comparison.pdf")
+pheatmap::pheatmap(temp, filename = "temp/annotation/cluster_comparison.pdf")
 
 # Summary statistics
 

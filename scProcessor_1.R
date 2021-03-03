@@ -56,6 +56,12 @@ bad_cols <- paste(bad_columns, sep = ", ")
 print(paste0("Removing columns with only one value: ", bad_cols))
 seurat@meta.data <- seurat@meta.data[, !colnames(seurat@meta.data) %in% c(bad_columns)] #Remove all columns that have only one variable
 seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^Mt\\.|^MT\\.|^mt\\.|^Mt-|^MT-|^mt-")
+for (i in colnames(seurat@meta.data)[!colnames(seurat@meta.data) %in% "percent.mt"]) {
+  if (ncol(seurat) == sum(seurat[[i, drop = TRUE]] == seurat$percent.mt)) {
+    print(paste0("Found duplicate mito column, removing ", i))
+    seurat@meta.data <- seurat@meta.data[, !colnames(seurat@meta.data) %in% i]
+    }
+  }
 seurat <- subset(seurat, subset = nFeature_RNA > data$QC_feature_min & percent.mt < data$QC_mt_max)
 if (data$norm == FALSE) {
   seurat <- Seurat::NormalizeData(seurat, verbose = verbose)
@@ -117,7 +123,7 @@ print("Defining optimal cluster resolution")
   data$cluster_resolution <- data$cluster_resolution[!duplicated(apply(clusters, 2, max))]
   diff2 = 0
   for (i in seq_along(data$cluster_resolution)) {
-    print(paste0("Checking resolution ", data$cluster_resolution[i]))
+    #print(paste0("Checking resolution ", data$cluster_resolution[i]))
     Idents(seurat_sampled) <- seurat_sampled[[paste0("RNA_snn_res.", data$cluster_resolution[i])]]
     seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
     seurat.markers.unique <- seurat.markers[!duplicated(seurat.markers$gene) & seurat.markers$p_val_adj < 0.05, ]
@@ -129,6 +135,7 @@ print("Defining optimal cluster resolution")
       diff2 <- clust_num - clust_unique
     }
     if (diff2 > diff1) {
+        print(paste0("Optimal resolution: ", data$cluster_resolution[i-1]))
         seurat$seurat_clusters <- seurat[[paste0("RNA_snn_res.", data$cluster_resolution[i-1])]]
         data$cluster_resolution <- data$cluster_resolution[[i-1]]
         break

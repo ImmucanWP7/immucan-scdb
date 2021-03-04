@@ -149,6 +149,9 @@ print("Defining optimal cluster resolution")
         print(paste0("Optimal cluster resolution: ", data$cluster_resolution[i-1]))
         seurat$seurat_clusters <- seurat[[paste0("RNA_snn_res.", data$cluster_resolution[i-1])]]
         data$cluster_resolution <- data$cluster_resolution[[i-1]]
+        Idents(seurat) <- seurat$seurat_clusters
+        seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
+        write.csv(seurat.markers, file = "temp/DE_genes.csv")
         break
       }
     }
@@ -269,7 +272,7 @@ ggsave(plot = p0, filename = "temp/annotation/Dotplot_seuratClusters_genes.png",
 p1 <- AugmentPlot(DimPlot(seurat, label = TRUE, label.size = 12))
 cell.markers <- cell.markers[cell.markers$gene %in% rownames(seurat), ]
 for (type in unique(cell.markers$category)) {
-  p2 <- FeaturePlot(seurat, features = unique(cell.markers[cell.markers$category == type, ]$gene), pt.size = .1)
+  p2 <- FeaturePlot(seurat, features = unique(cell.markers[cell.markers$category == type, ]$gene), pt.size = .1, ncol = 5)
   p3 <- DotPlot(seurat, features = unique(cell.markers[cell.markers$category == type, ]$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip() + NoLegend()
   layout <- "
   ACC
@@ -277,7 +280,7 @@ for (type in unique(cell.markers$category)) {
   BBB
   "
   p <- p1 + p2 + p3 + plot_layout(design = layout)
-  ggsave(plot = p, filename = paste0("temp/annotation/", type, ".png"), height = 30, width = 20, dpi = 100)
+  ggsave(plot = p, filename = paste0("temp/annotation/", type, ".png"), height = 20, width = 20, dpi = 100)
 }
 
 temp <- table(seurat$seurat_clusters, seurat$annotation_CHETAH)

@@ -209,10 +209,14 @@ if (data$malignant == TRUE) {
     tibble::column_to_rownames("cell")
   
   p1 <- DimPlot(seurat, group.by = "copykat.pred")
-  p2 <- FeaturePlot(seurat, features = "EPCAM")
-  p3 <- DimPlot(seurat, group.by = "seurat_clusters", label = TRUE) + NoLegend()
-  p <- p1 + p2 + p3
-  ggsave(plot = p, filename = "out/plots/copyKat_umap.pdf", height = 5, width = 15)
+  p2 <- DimPlot(seurat, group.by = "seurat_clusters", label = TRUE) + NoLegend()
+  if ("EPCAM" %in% rownames(seurat)) {
+    p3 <- FeaturePlot(seurat, features = "EPCAM")
+    p <- p1 + p2 + p3
+    ggsave(plot = p, filename = "out/plots/copyKat_umap.pdf", height = 5, width = 15)
+  }
+  p <- p1 + p2
+  ggsave(plot = p, filename = "out/plots/copyKat_umap.pdf", height = 5, width = 10)
 
   ##copykat recommendation
   fraction_copykat <- seurat@meta.data %>%

@@ -101,8 +101,9 @@ Rscript check_seurat.R [SEURAT] [BATCH]
 
 on the terminal
 ```
-cp -r out [DATASET_ID]_-_`md5sum /etc/group | awk -F" " '{print $1}'`
-zip -r [DATASET_ID_-_checksum].zip [DATASET_ID_-_checksum]
+zip -r AML_UNB_SW_GSE116256.zip AML_UNB_SW_GSE116256
+md5sum AML_UNB_SW_GSE116256.zip
+mv AML_UNB_SW_GSE116256 AML_UNB_SW_GSE116256_-_###PASTE_MD5SUM_OUTPUT_HERE###.zip 
 ```
 
 Login to SIB through sftp and transfer

@@ -48,7 +48,7 @@ if (file.exists("out/data.json")) {
   data$pca_dims = 30 #Amount of PCA dimensions to use
   data$features_var = 2000 #Amount of variable features to select
   data$nSample = 10000
-  data$cluster_resolution = seq(from = 0.4, to = 3, by = 0.1)
+  data$cluster_resolution = seq(from = 0.4, to = 4, by = 0.1)
   data$malignant = TRUE
   data$normal_cells = NA
   data$annotation = c("seurat_clusters","annotation_CHETAH","annotation_major","annotation_immune","annotation_minor", colnames(seurat@meta.data)[grepl("Cluster|cluster|author|Author|Annotation|annotation|Cell_type|cell_type", colnames(seurat@meta.data))])

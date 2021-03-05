@@ -39,7 +39,7 @@ options(future.globals.maxSize= 150000*1024^2)
 plan("multiprocess", workers = 12)
 seurat <- readRDS(object_path)
 data <- fromJSON("out/data.json")
-if (!is.na(data$nSample) & ncol(seurat) > data$nSample) {sub <- sample(ncol(seurat), data$nSample, replace = FALSE)}
+if (!is.na(data$nSample) & ncol(seurat) > data$nSample) {subsamples <- sample(ncol(seurat), data$nSample, replace = FALSE)}
 
 #makeReference, takes a Seurat Object and name of meta data column that contains the clusters. Returns a ranking of genes.
 makeReference = function(seuratObj, groupBy) {

@@ -44,7 +44,7 @@ data <- fromJSON("out/data.json")
 seurat_temp <- readRDS(data$object_path)
 seurat <- CreateSeuratObject(counts = seurat_temp[["RNA"]]@counts, meta.data = seurat_temp@meta.data, min.cells = 10, min.features = 200)
 if (length(data$batch) > 1) {stop("More than one batch specified, select the correct batch")}
-if (!"cluster_resolution" %in% names(data)) {data$cluster_resolution = seq(from = 0.4, to = 3, by = 0.1)}
+if (!"cluster_resolution" %in% names(data)) {data$cluster_resolution = seq(from = 0.4, to = 4, by = 0.1)}
 if (!is.na(data$nSample) & ncol(seurat) > data$nSample) {subsamples <- sample(ncol(seurat), data$nSample, replace = FALSE)}
 
 # QC
@@ -55,10 +55,12 @@ bad_columns <- colnames(seurat@meta.data[, sapply(sapply(seurat@meta.data, uniqu
 bad_cols <- paste(bad_columns, sep = ", ")
 print(paste0("Removing columns with only one value: ", bad_cols))
 seurat@meta.data <- seurat@meta.data[, !colnames(seurat@meta.data) %in% c(bad_columns)] #Remove all columns that have only one variable
+#colnames(seurat@meta.data) <- gsub("[[:space:]]|\\/", "_", colnames(seurat@meta.data)) #Clean column names from special characters
 seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^Mt\\.|^MT\\.|^mt\\.|^Mt-|^MT-|^mt-")
-for (i in colnames(seurat@meta.data)[!colnames(seurat@meta.data) %in% "percent.mt"]) {
-  if (ncol(seurat) == sum(seurat[[i, drop = TRUE]] == seurat$percent.mt)) {
-    print(paste0("Found duplicate mito column, removing ", i))
+cols <- colnames(seurat@meta.data)[!colnames(seurat@meta.data) %in% "percent.mt"]
+for (i in seq_along(cols)) {
+  if (ncol(seurat) == sum(seurat[[cols[i], drop = TRUE]] == seurat$percent.mt, na.rm = TRUE)) {
+    print(paste0("Found duplicate mito column, removing ", cols[i]))
     seurat@meta.data <- seurat@meta.data[, !colnames(seurat@meta.data) %in% i]
     }
   }
@@ -129,6 +131,13 @@ print("Defining optimal cluster resolution")
       clust_num <- nlevels(seurat.markers$cluster)
       clust_unique <- sum(table(seurat.markers.unique$cluster) >= 10)
       diff1 <- clust_num - clust_unique
+    } else if (i == length(data$cluster_resolution)) {
+      print(paste0("Optimal cluster resolution: ", data$cluster_resolution[i], " is max defined, consider increasing resolution range"))
+      data$cluster_resolution <- data$cluster_resolution[[i]]
+      Idents(seurat) <- seurat$seurat_clusters
+      seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
+      write.csv(seurat.markers, file = "temp/DE_genes.csv")
+      break
     } else {
       temp <- table(seurat_sampled[[paste0("RNA_snn_res.", data$cluster_resolution[i-1]), drop = TRUE]], seurat_sampled[[paste0("RNA_snn_res.", data$cluster_resolution[i]), drop = TRUE]])
       temp2 <- t(apply(temp, 1, function(x) x / sum(x)))
@@ -139,6 +148,7 @@ print("Defining optimal cluster resolution")
         seurat.markers[[clust_test[c]]] <- FindMarkers(seurat_sampled, ident.1 = clust_test[c], ident.2 = NULL, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
       }
       seurat.markers <- do.call(rbind, seurat.markers) %>%
+        as.data.frame() %>%
         tibble::rownames_to_column("row") %>%
         tidyr::separate(row, c("cluster", "gene"), remove = FALSE, sep = "\\.") %>%
         tibble::column_to_rownames("row")
@@ -263,17 +273,17 @@ for (i in as.character(na.omit(unique(cell.markers$cell_type)))) {
 
 #Idents(seurat) <- seurat$seurat_clusters #set seurat_clusters as idents
 temp <- AddModuleScore(seurat, features = markers)
-p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster[[:digit:]]", colnames(temp@meta.data))], group.by = "seurat_clusters", cluster.idents = TRUE) + scale_x_discrete(labels = names(markers)) + RotatedAxis()
+p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster[[:digit:]]", colnames(temp@meta.data))], group.by = "seurat_clusters", cluster.idents = TRUE) + scale_x_discrete(labels = names(markers)) + theme(axis.text.y = element_text(size = 8)) + RotatedAxis()
 ggsave(plot = p, filename = "temp/annotation/Dotplot_seuratClusters_geneModules.png", dpi = 100, height = 12, width = 12)
 
-p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip()
+p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + theme(axis.text.y = element_text(size = 8)) + coord_flip()
 ggsave(plot = p0, filename = "temp/annotation/Dotplot_seuratClusters_genes.png", dpi = 100, height = 12, width = 12)
 
-p1 <- AugmentPlot(DimPlot(seurat, label = TRUE, label.size = 12))
+p1 <- AugmentPlot(DimPlot(seurat, label = TRUE, label.size = 8))
 cell.markers <- cell.markers[cell.markers$gene %in% rownames(seurat), ]
 for (type in unique(cell.markers$category)) {
   p2 <- FeaturePlot(seurat, features = unique(cell.markers[cell.markers$category == type, ]$gene), pt.size = .1, ncol = 5)
-  p3 <- DotPlot(seurat, features = unique(cell.markers[cell.markers$category == type, ]$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + coord_flip() + NoLegend()
+  p3 <- DotPlot(seurat, features = unique(cell.markers[cell.markers$category == type, ]$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + theme(axis.text.y = element_text(size = 8)) + coord_flip() + NoLegend()
   layout <- "
   ACC
   BBB

@@ -167,3 +167,11 @@ write.table(x = cbind(seurat@meta.data, seurat@reductions$umap@cell.embeddings),
 
 # Convert to h5ad with sceasy for immediate use with cellxgene
 sceasy::convertFormat(seurat, from="seurat", to="anndata", outFile= "out/cellxgene_10k.h5ad")
+
+#zip and checksum
+print("STEP 5: ZIP AND CHECKSUM")
+setwd("../")
+folder_name <- gsub("/$", "", dir)
+zip(paste0(folder_name, ".zip"), paste0(dir, "out/"))
+checksum <- tools::md5sum(paste0(folder_name, ".zip"))
+file.rename(paste0(folder_name, ".zip"), paste0(folder_name, "_-_", checksum, ".zip"))

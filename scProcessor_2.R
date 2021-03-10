@@ -123,8 +123,8 @@ for (i in data$annotation) {
 print("STEP 3: CALCULATING GENE ENTROPY RANKING")
 geneIndex <- list()
 for (i in data$annotation) {
-  if (length(unique(seurat@meta.data[[i]])) > 1) {
-    geneIndex[[i]] <- makeReference(seuratObj = seurat, groupBy = i)
+  if (length(unique(seurat_sampled@meta.data[[i]])) > 1) {
+    geneIndex[[i]] <- makeReference(seuratObj = seurat_sampled, groupBy = i)
   }
 }
 geneIndex <- do.call(cbind, geneIndex)
@@ -171,7 +171,7 @@ sceasy::convertFormat(seurat, from="seurat", to="anndata", outFile= "out/cellxge
 #zip and checksum
 print("STEP 5: ZIP AND CHECKSUM")
 setwd("../")
-folder_name <- gsub("/$", "", dir)
-zip(paste0(folder_name, ".zip"), paste0(dir, "out/"))
+folder_name <- tail(unlist(strsplit(dir, "/")), n=1)
+zip(paste0(folder_name, ".zip"), paste0(folder_name, "/out"))
 checksum <- tools::md5sum(paste0(folder_name, ".zip"))
 file.rename(paste0(folder_name, ".zip"), paste0(folder_name, "_-_", checksum, ".zip"))

@@ -3,6 +3,7 @@ args = commandArgs(trailingOnly=TRUE)
 data = "out/data.json" #If data is already normalized or not, stored by check_seurat.R
 cellMarker_path = "/home/jordi_camps/IMMUcan/TME_markerGenes.xlsx"
 chetahClassifier_path = "/home/jordi_camps/IMMUcan/CHETAH_reference_updatedAnnotation.RData"
+uGene_clust = 20
 verbose = FALSE
 if (!dir.exists("temp")) {dir.create("temp")}
 if (!dir.exists("temp/annotation")) {dir.create("temp/annotation")}
@@ -45,7 +46,7 @@ seurat_temp <- readRDS(data$object_path)
 seurat <- CreateSeuratObject(counts = seurat_temp[["RNA"]]@counts, meta.data = seurat_temp@meta.data, min.cells = 10, min.features = 200)
 if (length(data$batch) > 1) {stop("More than one batch specified, select the correct batch")}
 if (!"cluster_resolution" %in% names(data)) {data$cluster_resolution = seq(from = 0.4, to = 4, by = 0.1)}
-if (!is.na(data$nSample) & ncol(seurat) > data$nSample) {subsamples <- sample(ncol(seurat), data$nSample, replace = FALSE)}
+if (ncol(seurat) > 50000) {subsamples <- sample(ncol(seurat), 50000, replace = FALSE)} #copykat can only run on matrix of max 50,000 cells
 
 # QC
 
@@ -117,6 +118,9 @@ if (length(data$cluster_resolution) > 1) {
 print("Defining optimal cluster resolution")
   if (exists("subsamples")) {
     seurat_sampled <- seurat[, subsamples]
+    if (any(table(seurat_sampled[[paste0("RNA_snn_res.", tail(data$cluster_resolution, n=1))]]) < 3)) {
+      seurat_sampled <- seurat
+    }
   } else {
     seurat_sampled <- seurat
   }
@@ -125,11 +129,12 @@ print("Defining optimal cluster resolution")
   data$cluster_resolution <- data$cluster_resolution[!duplicated(apply(clusters, 2, max))]
   for (i in seq_along(data$cluster_resolution)) {
     Idents(seurat_sampled) <- seurat_sampled[[paste0("RNA_snn_res.", data$cluster_resolution[i])]]
+    print(paste0("Checking cluster resolution ", data$cluster_resolution[i]))
     if (i == 1) {
       seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
       seurat.markers.unique <- seurat.markers[!duplicated(seurat.markers$gene) & seurat.markers$p_val_adj < 0.05, ]
       clust_num <- nlevels(seurat.markers$cluster)
-      clust_unique <- sum(table(seurat.markers.unique$cluster) >= 10)
+      clust_unique <- sum(table(seurat.markers.unique$cluster) >= uGene_clust)
       diff1 <- clust_num - clust_unique
     } else if (i == length(data$cluster_resolution)) {
       print(paste0("Optimal cluster resolution: ", data$cluster_resolution[i], " is max defined, consider increasing resolution range"))
@@ -144,8 +149,8 @@ print("Defining optimal cluster resolution")
       temp3 <- apply(temp2, 2, function(x) x < .9 & x > 0)
       clust_test <- levels(seurat_sampled[[paste0("RNA_snn_res.", data$cluster_resolution[i]), drop = TRUE]])[colSums(temp3) == 1]
       seurat.markers <- list()
-      for (c in seq_along(clust_test)) {
-        seurat.markers[[clust_test[c]]] <- FindMarkers(seurat_sampled, ident.1 = clust_test[c], ident.2 = NULL, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
+      for (c in clust_test) {
+        seurat.markers[[c]] <- FindMarkers(seurat_sampled, ident.1 = c, ident.2 = NULL, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
       }
       seurat.markers <- do.call(rbind, seurat.markers) %>%
         as.data.frame() %>%
@@ -153,7 +158,7 @@ print("Defining optimal cluster resolution")
         tidyr::separate(row, c("cluster", "gene"), remove = FALSE, sep = "\\.") %>%
         tibble::column_to_rownames("row")
       seurat.markers.unique <- seurat.markers[!duplicated(seurat.markers$gene) & seurat.markers$p_val_adj < 0.05, ]
-      clust_unique <- sum(table(seurat.markers.unique$cluster) >= 10)
+      clust_unique <- sum(table(seurat.markers.unique$cluster) >= uGene_clust)
       diff2 <- length(clust_test) - clust_unique
       if (diff2 > diff1) {
         print(paste0("Optimal cluster resolution: ", data$cluster_resolution[i-1]))
@@ -274,23 +279,24 @@ for (i in as.character(na.omit(unique(cell.markers$cell_type)))) {
 #Idents(seurat) <- seurat$seurat_clusters #set seurat_clusters as idents
 temp <- AddModuleScore(seurat, features = markers)
 p <- DotPlot(temp, features = colnames(temp@meta.data)[grepl("Cluster[[:digit:]]", colnames(temp@meta.data))], group.by = "seurat_clusters", cluster.idents = TRUE) + scale_x_discrete(labels = names(markers)) + theme(axis.text.y = element_text(size = 8)) + RotatedAxis()
-ggsave(plot = p, filename = "temp/annotation/Dotplot_seuratClusters_geneModules.png", dpi = 100, height = 12, width = 12)
+ggsave(plot = p, filename = "temp/annotation/Dotplot_seuratClusters_geneModules.png", dpi = 300, height = 12, width = 12)
 
 p0 <- DotPlot(seurat, features = unique(cell.markers$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + theme(axis.text.y = element_text(size = 8)) + coord_flip()
-ggsave(plot = p0, filename = "temp/annotation/Dotplot_seuratClusters_genes.png", dpi = 100, height = 12, width = 12)
+ggsave(plot = p0, filename = "temp/annotation/Dotplot_seuratClusters_genes.png", dpi = 300, height = 12, width = 12)
 
 p1 <- AugmentPlot(DimPlot(seurat, label = TRUE, label.size = 8))
 cell.markers <- cell.markers[cell.markers$gene %in% rownames(seurat), ]
 for (type in unique(cell.markers$category)) {
-  p2 <- FeaturePlot(seurat, features = unique(cell.markers[cell.markers$category == type, ]$gene), pt.size = .1, ncol = 5)
-  p3 <- DotPlot(seurat, features = unique(cell.markers[cell.markers$category == type, ]$gene), group.by = "seurat_clusters", cluster.idents = TRUE) + theme(axis.text.y = element_text(size = 8)) + coord_flip() + NoLegend()
+  markers <- unique(cell.markers[cell.markers$category == type, ]$gene)
+  if (length(markers) >= 6) {p2 <- FeaturePlot(seurat, features = markers, pt.size = .1, ncol = 6)} else {p2 <- FeaturePlot(seurat, features = markers, pt.size = .1)}
+  p3 <- DotPlot(seurat, features = markers, group.by = "seurat_clusters", cluster.idents = TRUE) + theme(axis.text.y = element_text(size = 8)) + coord_flip() + NoLegend()
   layout <- "
   ACC
   BBB
   BBB
   "
   p <- p1 + p2 + p3 + plot_layout(design = layout)
-  ggsave(plot = p, filename = paste0("temp/annotation/", type, ".png"), height = 20, width = 20, dpi = 100)
+  ggsave(plot = p, filename = paste0("temp/annotation/", type, ".png"), height = 20, width = 30, dpi = 300)
 }
 
 temp <- table(seurat$seurat_clusters, seurat$annotation_CHETAH)

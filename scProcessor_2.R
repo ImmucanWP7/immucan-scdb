@@ -86,20 +86,20 @@ temp <- colnames(seurat@meta.data)[tolower(colnames(seurat@meta.data)) %in% tolo
 for (i in temp) {
   if (is.numeric(seurat@meta.data[[i]]) == TRUE) {
     p <- FeaturePlot(seurat, features = i, reduction = "umap")
-    ggsave(plot = p, filename = paste0("out/plots/", i, ".png"), dpi = 300, width = 7, height = 6)
+    ggsave(plot = p, filename = paste0("out/plots/", i, ".png"), dpi = 300, width = 10, height = 10)
   } else if (length(unique(seurat@meta.data[[i]])) <= 20) {
     p <- DimPlot(seurat, reduction = "umap", pt.size = 1, group.by = i, label = TRUE) + ggthemes::scale_color_tableau(palette = "Tableau 20")
-    ggsave(plot = p, filename = paste0("out/plots/", i, ".png"), dpi = 300, width = 7, height = 6)
+    ggsave(plot = p, filename = paste0("out/plots/", i, ".png"), dpi = 300, width = 10, height = 10)
   } else {
     p <- DimPlot(seurat, reduction = "umap", pt.size = 1, group.by = i, label = TRUE)
-    ggsave(plot = p, filename = paste0("out/plots/", i, ".png"), dpi = 300, width = 7, height = 6)
+    ggsave(plot = p, filename = paste0("out/plots/", i, ".png"), dpi = 300, width = 10, height = 10)
   }
 }
 
 temp <- colnames(seurat@meta.data)[tolower(colnames(seurat@meta.data)) %in% tolower(data$metadata)]
 for (i in temp) {
   p <- ggplot(seurat@meta.data, aes_string(x = "cell_ontology", fill = i)) + geom_bar(position = "fill") + RotatedAxis()
-  ggsave(plot = p, filename = paste0("out/plots/", i, ".png"), dpi = 300, width = 7, height = 6)
+  ggsave(plot = p, filename = paste0("out/plots/", i, ".png"), dpi = 300, width = 10, height = 10)
 }
 
 # DE
@@ -170,8 +170,14 @@ sceasy::convertFormat(seurat, from="seurat", to="anndata", outFile= "out/cellxge
 
 #zip and checksum
 print("STEP 5: ZIP AND CHECKSUM")
-setwd("../")
+#setwd("../")
 folder_name <- tail(unlist(strsplit(dir, "/")), n=1)
-zip(paste0(folder_name, ".zip"), paste0(folder_name, "/out"))
+dir.create(folder_name)
+out_files <- paste0("out/", list.files("out/"))
+file.copy(out_files, folder_name, recursive = TRUE)
+zip(paste0(folder_name, ".zip"), folder_name)
 checksum <- tools::md5sum(paste0(folder_name, ".zip"))
 file.rename(paste0(folder_name, ".zip"), paste0(folder_name, "_-_", checksum, ".zip"))
+file.copy(paste0(folder_name, "_-_", checksum, ".zip"), "../")
+unlink(paste0(folder_name, "_-_", checksum, ".zip"))
+unlink(folder_name, recursive = TRUE)

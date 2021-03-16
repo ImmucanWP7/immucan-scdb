@@ -23,6 +23,8 @@ suppressPackageStartupMessages({
   library(tibble)
   library(jsonlite)
   library(harmony)
+  library(kBET)
+  library(scater)
 })
 
 print("STEP 1: CHECKING SEURAT OBJECT")
@@ -68,7 +70,7 @@ if (sum(grepl("\\.", seurat[["RNA"]]@counts[gapdh, ])) == 0) {
   print("Raw counts supplied")
 } else {
   data$norm <- TRUE
-  print("Normalized counts supplied, data won't be normalized")
+  print("No raw counts supplied, please inspect")
 }
 
 seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^Mt\\.|^MT\\.|^mt\\.|^Mt-|^MT-|^mt-")
@@ -78,22 +80,15 @@ dplyr::glimpse(seurat@meta.data)
 # Batch
 print("STEP 2a: ESTIMATING BATCH VARIABLES")
 
-## Sample object to max nSample specified
-#if (!is.na(data$nSample) & ncol(seurat) > data$nSample) {
-#  samples <- sample(colnames(seurat), data$nSample, replace = FALSE)
-#  seurat_sampled <- seurat[, samples]
-#} else {
-#  data$nSample <- NA
-  seurat_sampled <- seurat
-#}
-
 ## Remove bad quality cells
-seurat_sampled <- subset(seurat_sampled, subset = nFeature_RNA > data$QC_feature_min & percent.mt < data$QC_mt_max)
+seurat <- subset(seurat, subset = nFeature_RNA > data$QC_feature_min & percent.mt < data$QC_mt_max)
 
 ## Select potential batch columns from meta.data
-meta <- seurat_sampled@meta.data[, sapply(seurat_sampled@meta.data, class) %in% c("character", "factor")] #Select all columns that are factor or character
+meta <- seurat@meta.data[, sapply(seurat@meta.data, class) %in% c("character", "factor")] #Select all columns that are factor or character
 meta <- meta[, sapply(sapply(meta, unique), length) != 1, drop = FALSE] #Remove all columns that have only one variable
+meta <- meta[, sapply(sapply(meta, unique), length) != nrow(meta), drop = FALSE] #Remove columns with only unique values
 meta <- apply(meta, 2, function(x) gsub("^$|^ $", NA, x)) #Remove all columns with NAs
+meta <- meta[,!grepl("Cluster|cluster|author|Author|Annotation|annotation|Cell_type|cell_type|type|Type|cell|Cell", colnames(meta))]
 if (!"metadata" %in% names(data)) {data$metadata = colnames(meta)} #save metadata columns to data.json
 if (length(data$batch) > 1) {
   batch <- data$batch
@@ -104,27 +99,54 @@ if (length(data$batch) > 1) {
   batch <- data$batch
 }
 
+## Compute variance explained
+print("Compute explained variance")
+sce <- SingleCellExperiment(assays = list(logcounts = seurat[["RNA"]]@data), colData = meta)
+vars <- getVarianceExplained(x = sce, variables = colnames(meta))
+p_var <- plotExplanatoryVariables(vars)
+ggsave(plot = p_var, filename = paste0("temp/QC/Batch_variance_explained.png"))
+
 ## Create nearest neighbour graph
 if (data$norm == FALSE) {
-  seurat_sampled <- Seurat::NormalizeData(seurat_sampled, verbose = verbose)
-} else {seurat_sampled[["RNA"]]@data <- seurat_sampled[["RNA"]]@counts}
+  seurat <- Seurat::NormalizeData(seurat, verbose = verbose)
+} else {seurat[["RNA"]]@data <- seurat[["RNA"]]@counts}
 
-seurat_sampled <- seurat_sampled %>% 
+seurat <- seurat %>% 
   FindVariableFeatures(selection.method = "vst", nfeatures = data$features_var, verbose = verbose) %>% 
   ScaleData(verbose = verbose) %>% 
-  RunPCA(pc.genes = seurat_sampled@var.genes, npcs = data$pca_dims+20, verbose = verbose) %>%
+  RunPCA(pc.genes = seurat@var.genes, npcs = data$pca_dims+20, verbose = verbose) %>%
   RunUMAP(dims = 1:data$pca_dims, a = .5, b = 1.2, verbose = verbose) %>%
   FindNeighbors(dims = 1:2, k.param = 30, reduction = "umap", verbose = verbose)
 
-p_lbw <- ElbowPlot(seurat_sampled, ndims = data$pca_dims+20) + geom_vline(xintercept = data$pca_dims, color = "red") + ylab("STDEV PCA") + theme(axis.title.x = element_blank())
+p_lbw <- ElbowPlot(seurat, ndims = data$pca_dims+20) + geom_vline(xintercept = data$pca_dims, color = "red") + ylab("STDEV PCA") + theme(axis.title.x = element_blank())
+
+print("Compute kBET score")
+## kBET
+kbet <- list()
+subset_size <- 0.1 #subsample to 10% of the data
+subset_id <- sample.int(n = ncol(seurat), size = floor(subset_size * ncol(seurat)), replace=FALSE)
+mtx <- t(as.matrix(seurat[["RNA"]]@data))
+for (b in batch) {
+  btch <- meta[, b]
+  kbet.estimate <- kBET(df = mtx[subset_id, ], batch = btch[subset_id], plot = FALSE)
+  kbet[[b]] <- 1 - kbet.estimate$stats$kBET.observed
+}
+##Plot kbet scores
+kbet <- do.call(cbind, kbet)
+p_kbet <- kbet %>%
+  as.data.frame() %>%
+  gather("var", "Acceptance_rate") %>%
+  ggplot(aes(x = var, y = Acceptance_rate)) +
+  geom_boxplot()
+ggsave(plot = p_kbet, filename = "temp/QC/batch_kBET.png")
 
 ## Compute the percentage of batch in cell neighbors
 batch_entropy <- list()
 for (b in batch) {
   neighbors <- list()
-  for (i in unique(seurat_sampled@meta.data[, b])) {
-    temp <- rownames(seurat_sampled@meta.data[seurat_sampled@meta.data[ , b] == i, ])
-    neighbors[[i]] <- rowSums(as.matrix(seurat_sampled@graphs$RNA_nn[, temp]))/30
+  for (i in unique(seurat@meta.data[, b])) {
+    temp <- rownames(seurat@meta.data[seurat@meta.data[ , b] == i, ])
+    neighbors[[i]] <- rowSums(as.matrix(seurat@graphs$RNA_nn[, temp]))/30
   }
   neighbors <- as.data.frame(neighbors)
   ## Compute entropy per cell
@@ -148,25 +170,25 @@ print(paste0("Possible batch(es): ", batches))
 if (length(batch_var >= 1)) {
   print("STEP 2b: RUN HARMONY")
   batch_harmony <- list()
-  p0 <- AugmentPlot(DimPlot(seurat_sampled, reduction = "umap", group.by = i, pt.size = .1) + NoLegend() + ggtitle("Before harmony"))
-  p1 <- AugmentPlot(DimPlot(object = seurat_sampled, reduction = "pca", group.by = i, pt.size = .1) + NoLegend())
   
-  for (i in names(batch_var)) {
-    seurat_sampled <- seurat_sampled %>%
+  for (i in batch) {
+    p0 <- AugmentPlot(DimPlot(seurat, reduction = "umap", group.by = i, pt.size = .1) + NoLegend() + ggtitle("Before harmony"))
+    p1 <- AugmentPlot(DimPlot(object = seurat, reduction = "pca", group.by = i, pt.size = .1) + NoLegend())
+    seurat_corrected <- seurat %>%
       RunHarmony(i, plot_convergence = FALSE, verbose = verbose) %>%
       RunUMAP(reduction = "harmony", dims = 1:data$pca_dims, a = .5, b = 1.2, verbose = verbose) %>%
       FindNeighbors(dims = 1:2, k.param = 30, reduction = "umap", verbose = verbose)
     
-    p3 <- AugmentPlot(DimPlot(object = seurat_sampled, reduction = "harmony", group.by = i, pt.size = .1) + NoLegend())
-    p2 <- AugmentPlot(DimPlot(seurat_sampled, reduction = "umap", group.by = i, pt.size = .1) + NoLegend() + ggtitle("After harmony"))
+    p3 <- AugmentPlot(DimPlot(object = seurat_corrected, reduction = "harmony", group.by = i, pt.size = .1) + NoLegend())
+    p2 <- AugmentPlot(DimPlot(seurat_corrected, reduction = "umap", group.by = i, pt.size = .1) + NoLegend() + ggtitle("After harmony"))
     p <- (p0 | p2) / (p1 | p3)
     ggsave(plot = p, filename = paste0("temp/QC/Harmony_", i, ".png"))
     
     ## Compute the percentage of batch in cell neighbors
     neighbors <- list()
-    for (j in unique(seurat_sampled@meta.data[, i])) {
-      temp <- rownames(seurat_sampled@meta.data[seurat_sampled@meta.data[ , i] == j, ])
-      neighbors[[j]] <- rowSums(as.matrix(seurat_sampled@graphs$RNA_nn[, temp]))/30
+    for (j in unique(seurat_corrected@meta.data[, i])) {
+      temp <- rownames(seurat_corrected@meta.data[seurat@meta.data[ , i] == j, ])
+      neighbors[[j]] <- rowSums(as.matrix(seurat_corrected@graphs$RNA_nn[, temp]))/30
     }
     neighbors <- as.data.frame(neighbors)
     ## Compute entropy per cell
@@ -196,6 +218,7 @@ if (length(batch_var >= 1)) {
     scale_y_continuous("Entropy") +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
   ggsave(plot = p, filename = "temp/QC/batch_entropy.png", width = 10, height = 10)
+  
 } else {
   ## Plot entropy over all batches
   batch_entropy <- as.data.frame(batch_entropy)
@@ -213,7 +236,7 @@ if (length(batch_var >= 1)) {
 print("STEP 3: CREATE QC PLOTS")
 if (length(batch_var) >= 1) {
   for (i in names(batch_var)) {
-    p2 <- DimPlot(seurat_sampled, reduction = "umap", pt.size = .1, group.by = i, label = TRUE) + NoLegend()
+    p2 <- DimPlot(seurat, reduction = "umap", pt.size = .1, group.by = i, label = TRUE) + NoLegend()
     p3 <- AugmentPlot(VlnPlot(seurat, features = "nFeature_RNA", pt.size = 0.1, group.by = i, log = TRUE)) + 
       NoLegend() +
       scale_y_log10("Genes", expand = c(0,0)) + 
@@ -229,16 +252,16 @@ if (length(batch_var) >= 1) {
       scale_y_continuous("Mito", expand = c(0,0)) +
       theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text())
     if ("CD3D" %in% rownames(seurat)) {
-      p6 <- AugmentPlot(FeaturePlot(seurat_sampled, features = "CD3D", pt.size = .1)) +
+      p6 <- AugmentPlot(FeaturePlot(seurat, features = "CD3D", pt.size = .1)) +
         theme(axis.title.x = element_blank(), axis.title.y = element_text())
     } else if ("CD68" %in% rownames(seurat)) {
-      p6 <- AugmentPlot(FeaturePlot(seurat_sampled, features = "CD68", pt.size = .1)) +
+      p6 <- AugmentPlot(FeaturePlot(seurat, features = "CD68", pt.size = .1)) +
         theme(axis.title.x = element_blank(), axis.title.y = element_text())
     } else if ("CLDN5" %in% rownames(seurat)) {
-      p6 <- AugmentPlot(FeaturePlot(seurat_sampled, features = "CLDN5", pt.size = .1)) +
+      p6 <- AugmentPlot(FeaturePlot(seurat, features = "CLDN5", pt.size = .1)) +
         theme(axis.title.x = element_blank(), axis.title.y = element_text())
     } else {
-      p6 <- AugmentPlot(DimPlot(seurat_sampled, group.by = i))
+      p6 <- AugmentPlot(DimPlot(seurat, group.by = i))
     }
     p <- (p_lbw + p2) / (p3 + p5) / (p4 + p6)
     ggsave(plot = p, filename = paste0("temp/QC/QC_", i, ".png"))

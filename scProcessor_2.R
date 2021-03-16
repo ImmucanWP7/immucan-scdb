@@ -44,7 +44,7 @@ if (!is.na(data$nSample) & ncol(seurat) > data$nSample) {subsamples <- sample(nc
 #makeReference, takes a Seurat Object and name of meta data column that contains the clusters. Returns a ranking of genes.
 makeReference = function(seuratObj, groupBy) {
   groupBy = which(colnames(seuratObj@meta.data) == groupBy)
-  gs = sortGenes(seuratObj@assays$RNA@counts, factor(seuratObj@meta.data[,groupBy]), binarizeMethod = "naive", cores = 1)
+  gs = sortGenes(seuratObj@assays$RNA@counts, factor(seuratObj@meta.data[,groupBy]), binarizeMethod = "naive", cores = 12)
   pp = getPValues(gs, numPerm = 5, cores = 1)
   pp = apply(pp$adjpval, 1, function(x) any(x < 0.1))
   mm = getMarkers(gs)
@@ -104,11 +104,11 @@ for (i in temp) {
 
 # DE
 print("STEP 2: CALCULATING MARKER GENES")
-if (exists("subsamples")) {
-  seurat_sampled <- seurat[, subsamples]
-} else {
+#if (exists("subsamples")) {
+#  seurat_sampled <- seurat[, subsamples]
+#} else {
   seurat_sampled <- seurat
-}
+#}
 annoCounts <- list()
 for (i in data$annotation) {
   Idents(seurat_sampled) <- seurat_sampled[[i, drop = TRUE]]
@@ -170,7 +170,6 @@ sceasy::convertFormat(seurat, from="seurat", to="anndata", outFile= "out/cellxge
 
 #zip and checksum
 print("STEP 5: ZIP AND CHECKSUM")
-#setwd("../")
 folder_name <- tail(unlist(strsplit(dir, "/")), n=1)
 dir.create(folder_name)
 out_files <- paste0("out/", list.files("out/"))

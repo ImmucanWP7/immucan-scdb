@@ -68,9 +68,12 @@ gapdh <- grepl("GAPDH|Gapdh", rownames(seurat))
 if (sum(grepl("\\.", seurat[["RNA"]]@counts[gapdh, ])) == 0) {
   data$norm <- FALSE
   print("Raw counts supplied")
+} else if (any(seurat[["RNA"]]@counts[gapdh, ] > 100)) {
+  data$norm <- FALSE
+  print("Normalized counts supplied. Be careful with further interpretation")
 } else {
   data$norm <- TRUE
-  print("No raw counts supplied, please inspect")
+  print("Logcounts supplied, no normalization will be done. Be careful with further interpretation")
 }
 
 seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^Mt\\.|^MT\\.|^mt\\.|^Mt-|^MT-|^mt-")
@@ -83,12 +86,19 @@ print("STEP 2a: ESTIMATING BATCH VARIABLES")
 ## Remove bad quality cells
 seurat <- subset(seurat, subset = nFeature_RNA > data$QC_feature_min & percent.mt < data$QC_mt_max)
 
+## Subsample datasets larger than 20k cells
+if (ncol(seurat) > 20000) {
+  subset_size <- 0.1 #subsample to 10% of the data
+  subset_id <- sample.int(n = ncol(seurat), size = floor(subset_size * ncol(seurat)), replace=FALSE)
+  seurat <- seurat[, subset_id]
+}
+
 ## Select potential batch columns from meta.data
+seurat@meta.data <- seurat@meta.data[, sapply(sapply(seurat@meta.data, unique), length) != 1, drop = FALSE] #Remove all columns that have only one variable
+seurat@meta.data <- seurat@meta.data[, sapply(sapply(seurat@meta.data, unique), length) != nrow(seurat@meta.data), drop = FALSE] #Remove columns with only unique values
+seurat@meta.data <- as.data.frame(apply(seurat@meta.data, 2, function(x) gsub("^$|^ $", NA, x))) #Remove all columns with NAs
 meta <- seurat@meta.data[, sapply(seurat@meta.data, class) %in% c("character", "factor")] #Select all columns that are factor or character
-meta <- meta[, sapply(sapply(meta, unique), length) != 1, drop = FALSE] #Remove all columns that have only one variable
-meta <- meta[, sapply(sapply(meta, unique), length) != nrow(meta), drop = FALSE] #Remove columns with only unique values
-meta <- apply(meta, 2, function(x) gsub("^$|^ $", NA, x)) #Remove all columns with NAs
-meta <- meta[,!grepl("Cluster|cluster|author|Author|Annotation|annotation|Cell_type|cell_type|type|Type|cell|Cell", colnames(meta))]
+meta <- meta[,!grepl("Cluster|cluster|author|Author|Annotation|annotation|Cell_type|cell_type|type|Type|cell|Cell|barcode|Barcode", colnames(meta))]
 if (!"metadata" %in% names(data)) {data$metadata = colnames(meta)} #save metadata columns to data.json
 if (length(data$batch) > 1) {
   batch <- data$batch
@@ -98,13 +108,8 @@ if (length(data$batch) > 1) {
 } else {
   batch <- data$batch
 }
-
-## Compute variance explained
-print("Compute explained variance")
-sce <- SingleCellExperiment(assays = list(logcounts = seurat[["RNA"]]@data), colData = meta)
-vars <- getVarianceExplained(x = sce, variables = colnames(meta))
-p_var <- plotExplanatoryVariables(vars)
-ggsave(plot = p_var, filename = paste0("temp/QC/Batch_variance_explained.png"))
+print("Possible batches:")
+print(paste0(batch))
 
 ## Create nearest neighbour graph
 if (data$norm == FALSE) {
@@ -120,25 +125,30 @@ seurat <- seurat %>%
 
 p_lbw <- ElbowPlot(seurat, ndims = data$pca_dims+20) + geom_vline(xintercept = data$pca_dims, color = "red") + ylab("STDEV PCA") + theme(axis.title.x = element_blank())
 
-print("Compute kBET score")
+## Compute variance explained
+print("Compute explained variance")
+sce <- SingleCellExperiment(assays = list(logcounts = seurat[["RNA"]]@data), colData = seurat@meta.data)
+vars <- getVarianceExplained(x = sce, variables = colnames(seurat@meta.data))
+p_var <- plotExplanatoryVariables(vars)
+ggsave(plot = p_var, filename = paste0("temp/QC/Batch_variance_explained.png"))
+
+#print("Compute kBET score")
 ## kBET
-kbet <- list()
-subset_size <- 0.1 #subsample to 10% of the data
-subset_id <- sample.int(n = ncol(seurat), size = floor(subset_size * ncol(seurat)), replace=FALSE)
-mtx <- t(as.matrix(seurat[["RNA"]]@data))
-for (b in batch) {
-  btch <- meta[, b]
-  kbet.estimate <- kBET(df = mtx[subset_id, ], batch = btch[subset_id], plot = FALSE)
-  kbet[[b]] <- 1 - kbet.estimate$stats$kBET.observed
-}
+#kbet <- list()
+#mtx <- t(as.matrix(seurat[["RNA"]]@data))
+#for (b in batch) {
+#  btch <- meta[, b]
+#  kbet.estimate <- kBET(df = mtx, batch = btch, plot = FALSE)
+#  kbet[[b]] <- 1 - kbet.estimate$stats$kBET.observed
+#}
 ##Plot kbet scores
-kbet <- do.call(cbind, kbet)
-p_kbet <- kbet %>%
-  as.data.frame() %>%
-  gather("var", "Acceptance_rate") %>%
-  ggplot(aes(x = var, y = Acceptance_rate)) +
-  geom_boxplot()
-ggsave(plot = p_kbet, filename = "temp/QC/batch_kBET.png")
+#kbet <- do.call(cbind, kbet)
+#p_kbet <- kbet %>%
+#  as.data.frame() %>%
+#  gather("var", "Acceptance_rate") %>%
+#  ggplot(aes(x = var, y = Acceptance_rate)) +
+#  geom_boxplot()
+#ggsave(plot = p_kbet, filename = "temp/QC/batch_kBET.png")
 
 ## Compute the percentage of batch in cell neighbors
 batch_entropy <- list()
@@ -150,24 +160,26 @@ for (b in batch) {
   }
   neighbors <- as.data.frame(neighbors)
   ## Compute entropy per cell
+  optimum <- table(seurat@meta.data[, b]) / ncol(seurat)
   batch_entropy[[b]] <- apply(neighbors, 1, Entropy)
+  batch_entropy[[b]] <- batch_entropy[[b]] / Entropy(optimum)
 }
 batch_entropy <- do.call(cbind, batch_entropy)
 
 ## Save batch variables with entropy < 2
-batch_var <- list()
-for (i in colnames(batch_entropy)) {
-  if (median(as.numeric(batch_entropy[, i])) < 2) {
-    batch_var[[i]] <- median(as.numeric(batch_entropy[, i]))
-  }
-}
-batch_var <- batch_var[!duplicated(batch_var)]
-batches <- paste(names(batch_var), sep = ", ")
-print(paste0("Possible batch(es): ", batches))
+#batch_var <- list()
+#for (i in colnames(batch_entropy)) {
+#  if (median(as.numeric(batch_entropy[, i])) < 2) {
+#    batch_var[[i]] <- median(as.numeric(batch_entropy[, i]))
+#  }
+#}
+#batch_var <- batch_var[!duplicated(batch_var)]
+#batches <- paste(names(batch_var), sep = ", ")
+#print(paste0("Possible batch(es): ", batches))
 
 # Run harmony
 
-if (length(batch_var >= 1)) {
+if (length(batch >= 1)) {
   print("STEP 2b: RUN HARMONY")
   batch_harmony <- list()
   
@@ -192,7 +204,9 @@ if (length(batch_var >= 1)) {
     }
     neighbors <- as.data.frame(neighbors)
     ## Compute entropy per cell
+    optimum <- table(seurat@meta.data[, i]) / ncol(seurat)
     batch_harmony[[i]] <- apply(neighbors, 1, Entropy)
+    batch_harmony[[i]] <- batch_harmony[[i]] / Entropy(optimum)
   }
   batch_harmony <- do.call(cbind, batch_harmony)
   ## Plot entropy over all batches
@@ -219,22 +233,22 @@ if (length(batch_var >= 1)) {
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
   ggsave(plot = p, filename = "temp/QC/batch_entropy.png", width = 10, height = 10)
   
-} else {
+} #else {
   ## Plot entropy over all batches
-  batch_entropy <- as.data.frame(batch_entropy)
-  p <- batch_entropy %>% 
-    tibble::rownames_to_column("cell") %>%
-    gather("batch", "entropy", -cell) %>%
-    ggplot(aes(y = as.numeric(entropy), x = batch)) +
-    geom_boxplot() +
-    scale_y_continuous("Entropy") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  ggsave(plot = p, filename = "temp/QC/batch_entropy.png", width = 10, height = 10)
-}
+  #batch_entropy <- as.data.frame(batch_entropy)
+  #p <- batch_entropy %>% 
+  #  tibble::rownames_to_column("cell") %>%
+  #  gather("batch", "entropy", -cell) %>%
+  #  ggplot(aes(y = as.numeric(entropy), x = batch)) +
+  #  geom_boxplot() +
+  #  scale_y_continuous("Entropy") +
+  #  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  #ggsave(plot = p, filename = "temp/QC/batch_entropy.png", width = 10, height = 10)
+#}
 
 # QC
 print("STEP 3: CREATE QC PLOTS")
-if (length(batch_var) >= 1) {
+if (length(batch) >= 1) {
   for (i in names(batch_var)) {
     p2 <- DimPlot(seurat, reduction = "umap", pt.size = .1, group.by = i, label = TRUE) + NoLegend()
     p3 <- AugmentPlot(VlnPlot(seurat, features = "nFeature_RNA", pt.size = 0.1, group.by = i, log = TRUE)) + 
@@ -267,7 +281,7 @@ if (length(batch_var) >= 1) {
     ggsave(plot = p, filename = paste0("temp/QC/QC_", i, ".png"))
   }
 } else {
-  print("No batch effect in dataset!")
+  print("No batches found in metadata!")
   p1 <- AugmentPlot(VlnPlot(seurat, features = "nFeature_RNA", pt.size = 0.1, log = TRUE)) + 
     NoLegend() +
     scale_y_log10("Genes", expand = c(0,0)) + 

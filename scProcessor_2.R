@@ -154,10 +154,14 @@ temp <- AverageExpression(seurat, assays = "RNA")
 write.table(x = temp$RNA, file = "out/avgExpr_CHETAH.tsv", row.names = TRUE, sep = "\t")
 
 Idents(seurat) <- seurat$annotation_minor
-seurat@meta.data <- seurat@meta.data[, !grepl("RNA_snn_res|abbreviation|cell_id|cell.id|cell_ontology", colnames(seurat@meta.data))]
+seurat@meta.data <- seurat@meta.data[, sapply(sapply(seurat@meta.data, unique), length) != 1, drop = FALSE] #Remove all columns that have only one variable
+seurat@meta.data <- seurat@meta.data[, !grepl("RNA_snn_res|abbreviation|cell_id|cell.id", colnames(seurat@meta.data))]
 
 # Convert to h5ad with sceasy for immediate use with cellxgene
 sceasy::convertFormat(seurat, from="seurat", to="anndata", outFile= "out/cellxgene.h5ad")
+
+# Export metadata with umap coordinates
+write.table(x = cbind(seurat@meta.data, seurat@reductions$umap@cell.embeddings), file = "out/metadata.tsv", row.names = TRUE, sep = "\t")
 
 #Subsample object to 10k cells
 if (exists("subsamples")) {seurat <- seurat[, subsamples]}

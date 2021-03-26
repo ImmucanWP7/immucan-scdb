@@ -42,8 +42,8 @@ data <- fromJSON("out/data.json")
 
 # Recreate seurat object
 
-seurat_temp <- readRDS(data$object_path)
-seurat <- CreateSeuratObject(counts = seurat_temp[["RNA"]]@counts, meta.data = seurat_temp@meta.data, min.cells = 10, min.features = 200)
+seurat <- readRDS(data$object_path)
+seurat <- CreateSeuratObject(counts = seurat[["RNA"]]@counts, meta.data = seurat@meta.data, min.cells = 10, min.features = 200)
 if (length(data$batch) > 1) {stop("More than one batch specified, select the correct batch")}
 if (!"cluster_resolution" %in% names(data)) {data$cluster_resolution = seq(from = 0.4, to = 4, by = 0.1)}
 if (ncol(seurat) > 50000) {subsamples <- sample(ncol(seurat), 50000, replace = FALSE)} #copykat can only run on matrix of max 50,000 cells
@@ -57,15 +57,15 @@ bad_cols <- paste(bad_columns, sep = ", ")
 print(paste0("Removing columns with only one value: ", bad_cols))
 seurat@meta.data <- seurat@meta.data[, !colnames(seurat@meta.data) %in% c(bad_columns)] #Remove all columns that have only one variable
 #colnames(seurat@meta.data) <- gsub("[[:space:]]|\\/", "_", colnames(seurat@meta.data)) #Clean column names from special characters
-seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^Mt\\.|^MT\\.|^mt\\.|^Mt-|^MT-|^mt-")
-cols <- colnames(seurat@meta.data)[!colnames(seurat@meta.data) %in% "percent.mt"]
+seurat[["percent_mt"]] <- PercentageFeatureSet(seurat, pattern = "^Mt\\.|^MT\\.|^mt\\.|^Mt-|^MT-|^mt-")
+cols <- colnames(seurat@meta.data)[!colnames(seurat@meta.data) %in% "percent_mt"]
 for (i in seq_along(cols)) {
-  if (ncol(seurat) == sum(seurat[[cols[i], drop = TRUE]] == seurat$percent.mt, na.rm = TRUE)) {
+  if (ncol(seurat) == sum(seurat[[cols[i], drop = TRUE]] == seurat$percent_mt, na.rm = TRUE)) {
     print(paste0("Found duplicate mito column, removing ", cols[i]))
     seurat@meta.data <- seurat@meta.data[, !colnames(seurat@meta.data) %in% i]
     }
   }
-seurat <- subset(seurat, subset = nFeature_RNA > data$QC_feature_min & percent.mt < data$QC_mt_max)
+seurat <- subset(seurat, subset = nFeature_RNA > data$QC_feature_min & percent_mt < data$QC_mt_max)
 if (data$norm == FALSE) {
   seurat <- Seurat::NormalizeData(seurat, verbose = verbose)
 } else {seurat[["RNA"]]@data <- seurat[["RNA"]]@counts}

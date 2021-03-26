@@ -3,6 +3,7 @@ args = commandArgs(trailingOnly=TRUE)
 seurat_obj = args[1] #path of seurat object
 batch_var = args[2] #batch variable if known
 verbose = FALSE
+tidy_metadata_path <- "/home/jordi_camps/IMMUcan/tidy_metadata.xlsx"
 
 dir <- getwd()
 setwd(dir)
@@ -18,6 +19,7 @@ suppressPackageStartupMessages({
   library(patchwork)
   library(Matrix)
   library(dplyr)
+  library(readxl)
   library(DescTools)
   library(tidyr)
   library(tibble)
@@ -35,8 +37,7 @@ if (is.na(seurat_obj)) {
     stop("Specify seurat object in arguments")
   }
 }
-seurat_temp <- readRDS(seurat_obj)
-seurat <- CreateSeuratObject(counts = seurat_temp[["RNA"]]@counts, meta.data = seurat_temp@meta.data, min.cells = 10, min.features = 200)
+seurat <- readRDS(seurat_obj)
 
 # Load data.json or create standard
 if (file.exists("out/data.json")) {
@@ -53,7 +54,6 @@ if (file.exists("out/data.json")) {
   data$cluster_resolution = seq(from = 0.4, to = 4, by = 0.1)
   data$malignant = TRUE
   data$normal_cells = NA
-  data$annotation = c("seurat_clusters","annotation_CHETAH","annotation_major","annotation_immune","annotation_minor", colnames(seurat@meta.data)[grepl("Cluster|cluster|author|Author|Annotation|annotation|Cell_type|cell_type", colnames(seurat@meta.data))])
 }
 
 print(paste0("nCell = ", ncol(seurat), " / ", "nGene = ", nrow(seurat)))
@@ -76,18 +76,34 @@ if (sum(grepl("\\.", seurat[["RNA"]]@counts[gapdh, ])) == 0) {
   print("Logcounts supplied, no normalization will be done. Be careful with further interpretation")
 }
 
-seurat[["percent.mt"]] <- PercentageFeatureSet(seurat, pattern = "^Mt\\.|^MT\\.|^mt\\.|^Mt-|^MT-|^mt-")
+seurat[["percent_mt"]] <- PercentageFeatureSet(seurat, pattern = "^Mt\\.|^MT\\.|^mt\\.|^Mt-|^MT-|^mt-")
 seurat[["RNA"]]@counts[1:5,1:5]
 dplyr::glimpse(seurat@meta.data)
+
+meta_cols <- read_excel(tidy_metadata_path)
+if (any(colnames(seurat@meta.data) %in% meta_cols$col_names)) {
+  change_cols <- colnames(seurat@meta.data)[colnames(seurat@meta.data) %in% meta_cols$col_names]
+  for (i in change_cols) {
+    hit_1 <- grepl(i, colnames(seurat@meta.data))
+    hit_2 <- meta_cols$col_names %in% i
+    print(paste0("changing ", i, " to ", meta_cols$general[hit_2]))
+    colnames(seurat@meta.data)[hit_1] <- meta_cols$general[hit_2]
+  }
+} else {
+  print("No meta.data columns to tidy up")
+}
+data$annotation = c("seurat_clusters","annotation_CHETAH","annotation_major","annotation_immune","annotation_minor", colnames(seurat@meta.data)[grepl("authors_annotation|Authors_annotation", colnames(seurat@meta.data))])
+saveRDS(seurat, seurat_obj)
 
 # Batch
 print("STEP 2a: ESTIMATING BATCH VARIABLES")
 
 ## Remove bad quality cells
-seurat <- subset(seurat, subset = nFeature_RNA > data$QC_feature_min & percent.mt < data$QC_mt_max)
+seurat <- CreateSeuratObject(counts = seurat[["RNA"]]@counts, meta.data = seurat@meta.data, min.cells = 10, min.features = 200)
+seurat <- subset(seurat, subset = nFeature_RNA > data$QC_feature_min & percent_mt < data$QC_mt_max)
 
 ## Subsample datasets larger than 20k cells
-if (ncol(seurat) > 20000) {
+if (ncol(seurat) > 50000) {
   subset_size <- 0.1 #subsample to 10% of the data
   subset_id <- sample.int(n = ncol(seurat), size = floor(subset_size * ncol(seurat)), replace=FALSE)
   seurat <- seurat[, subset_id]
@@ -95,16 +111,15 @@ if (ncol(seurat) > 20000) {
 
 ## Select potential batch columns from meta.data
 seurat@meta.data <- seurat@meta.data[, sapply(sapply(seurat@meta.data, unique), length) != 1, drop = FALSE] #Remove all columns that have only one variable
-seurat@meta.data <- seurat@meta.data[, sapply(sapply(seurat@meta.data, unique), length) != nrow(seurat@meta.data), drop = FALSE] #Remove columns with only unique values
-seurat@meta.data <- as.data.frame(apply(seurat@meta.data, 2, function(x) gsub("^$|^ $", NA, x))) #Remove all columns with NAs
+#seurat@meta.data <- seurat@meta.data[, sapply(sapply(seurat@meta.data, unique), length) != nrow(seurat@meta.data), drop = FALSE] #Remove columns with only unique values
 meta <- seurat@meta.data[, sapply(seurat@meta.data, class) %in% c("character", "factor")] #Select all columns that are factor or character
-meta <- meta[,!grepl("Cluster|cluster|author|Author|Annotation|annotation|Cell_type|cell_type|type|Type|cell|Cell|barcode|Barcode", colnames(meta))]
+meta <- meta[,!grepl("Cluster|cluster|author|Author|Annotation|annotation|Cell_type|cell_type|cell|Cell|barcode|Barcode", colnames(meta))]
 if (!"metadata" %in% names(data)) {data$metadata = colnames(meta)} #save metadata columns to data.json
 if (length(data$batch) > 1) {
   batch <- data$batch
 } else if (is.na(data$batch)) {
-  batch <- meta[, apply(meta, 2, function(x) !any(is.na(x))), drop = FALSE] #Remove all columns with NAs
-  batch <- colnames(batch)
+  temp <- meta[, apply(meta, 2, function(x) !any(is.na(x))), drop = FALSE] #Remove all columns with NAs
+  batch <- colnames(temp)
 } else {
   batch <- data$batch
 }
@@ -126,18 +141,19 @@ seurat <- seurat %>%
 p_lbw <- ElbowPlot(seurat, ndims = data$pca_dims+20) + geom_vline(xintercept = data$pca_dims, color = "red") + ylab("STDEV PCA") + theme(axis.title.x = element_blank())
 
 ## Compute variance explained
-print("Compute explained variance")
-sce <- SingleCellExperiment(assays = list(logcounts = seurat[["RNA"]]@data), colData = seurat@meta.data)
-vars <- getVarianceExplained(x = sce, variables = colnames(seurat@meta.data))
-p_var <- plotExplanatoryVariables(vars)
-ggsave(plot = p_var, filename = paste0("temp/QC/Batch_variance_explained.png"))
+#print("Compute explained variance")
+#temp <- seurat@meta.data[, apply(seurat@meta.data, 2, function(x) !any(is.na(x))), drop = FALSE] #Remove all columns with NAs
+#sce <- SingleCellExperiment(assays = list(logcounts = seurat[["RNA"]]@data), colData = temp)
+#vars_exp <- getVarianceExplained(x = sce, variables = colnames(temp))
+#p_var <- plotExplanatoryVariables(vars_exp)
+#ggsave(plot = p_var, filename = paste0("temp/QC/Batch_variance_explained.png"))
 
 #print("Compute kBET score")
 ## kBET
 #kbet <- list()
 #mtx <- t(as.matrix(seurat[["RNA"]]@data))
 #for (b in batch) {
-#  btch <- meta[, b]
+#  btch <- seurat@meta.data[, b]
 #  kbet.estimate <- kBET(df = mtx, batch = btch, plot = FALSE)
 #  kbet[[b]] <- 1 - kbet.estimate$stats$kBET.observed
 #}
@@ -151,6 +167,7 @@ ggsave(plot = p_var, filename = paste0("temp/QC/Batch_variance_explained.png"))
 #ggsave(plot = p_kbet, filename = "temp/QC/batch_kBET.png")
 
 ## Compute the percentage of batch in cell neighbors
+print("Compute batch entropy")
 batch_entropy <- list()
 for (b in batch) {
   neighbors <- list()
@@ -234,22 +251,22 @@ if (length(batch >= 1)) {
   ggsave(plot = p, filename = "temp/QC/batch_entropy.png", width = 10, height = 10)
   
 } #else {
-  ## Plot entropy over all batches
-  #batch_entropy <- as.data.frame(batch_entropy)
-  #p <- batch_entropy %>% 
-  #  tibble::rownames_to_column("cell") %>%
-  #  gather("batch", "entropy", -cell) %>%
-  #  ggplot(aes(y = as.numeric(entropy), x = batch)) +
-  #  geom_boxplot() +
-  #  scale_y_continuous("Entropy") +
-  #  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  #ggsave(plot = p, filename = "temp/QC/batch_entropy.png", width = 10, height = 10)
+## Plot entropy over all batches
+#batch_entropy <- as.data.frame(batch_entropy)
+#p <- batch_entropy %>% 
+#  tibble::rownames_to_column("cell") %>%
+#  gather("batch", "entropy", -cell) %>%
+#  ggplot(aes(y = as.numeric(entropy), x = batch)) +
+#  geom_boxplot() +
+#  scale_y_continuous("Entropy") +
+#  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#ggsave(plot = p, filename = "temp/QC/batch_entropy.png", width = 10, height = 10)
 #}
 
 # QC
 print("STEP 3: CREATE QC PLOTS")
 if (length(batch) >= 1) {
-  for (i in names(batch_var)) {
+  for (i in batch) {
     p2 <- DimPlot(seurat, reduction = "umap", pt.size = .1, group.by = i, label = TRUE) + NoLegend()
     p3 <- AugmentPlot(VlnPlot(seurat, features = "nFeature_RNA", pt.size = 0.1, group.by = i, log = TRUE)) + 
       NoLegend() +
@@ -260,11 +277,20 @@ if (length(batch) >= 1) {
       NoLegend() + 
       scale_y_log10("Counts", expand = c(0,0)) + 
       theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text(), axis.text.x = element_blank(), axis.ticks.x = element_blank())
-    p5 <- AugmentPlot(VlnPlot(seurat, features = "percent.mt", pt.size = 0.1, group.by = i)) + 
-      NoLegend() +
-      geom_hline(yintercept = data$QC_mt_max, color = "red") + 
-      scale_y_continuous("Mito", expand = c(0,0)) +
-      theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text())
+    if ("percent_mt" %in% colnames(seurat@meta.data)) {
+      p5 <- AugmentPlot(VlnPlot(seurat, features = "percent_mt", pt.size = 0.1, group.by = i)) + 
+        NoLegend() +
+        geom_hline(yintercept = data$QC_mt_max, color = "red") + 
+        scale_y_continuous("Mito", expand = c(0,0)) +
+        theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text())
+    } else {
+      seurat@meta.data$percent_mt <- 0
+      p5 <- AugmentPlot(VlnPlot(seurat, features = "percent_mt", pt.size = 0.1, group.by = i)) + 
+        NoLegend() +
+        geom_hline(yintercept = data$QC_mt_max, color = "red") + 
+        scale_y_continuous("Mito", expand = c(0,0)) +
+        theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text())
+    }
     if ("CD3D" %in% rownames(seurat)) {
       p6 <- AugmentPlot(FeaturePlot(seurat, features = "CD3D", pt.size = .1)) +
         theme(axis.title.x = element_blank(), axis.title.y = element_text())
@@ -291,7 +317,7 @@ if (length(batch) >= 1) {
     NoLegend() + 
     scale_y_log10("Counts", expand = c(0,0)) + 
     theme(axis.title.x = element_blank(), plot.title = element_blank(), axis.title.y = element_text(), axis.text.x = element_blank(), axis.ticks.x = element_blank())
-  p3 <- AugmentPlot(VlnPlot(seurat, features = "percent.mt", pt.size = 0.1)) + 
+  p3 <- AugmentPlot(VlnPlot(seurat, features = "percent_mt", pt.size = 0.1)) + 
     NoLegend() +
     geom_hline(yintercept = data$QC_mt_max, color = "red") + 
     scale_y_continuous("Mito", expand = c(0,0)) +
@@ -301,8 +327,8 @@ if (length(batch) >= 1) {
 }
 
 ## Save data.json
-if (length(names(batch_var)) >=1) {
-  data$batch = names(batch_var)
+if (length(batch) == 1) {
+  data$batch = "patient"
 } else {
   data$batch = FALSE
 }

@@ -23,11 +23,15 @@ if (!is.na(data$nSample) & ncol(seurat) > data$nSample) {subsamples <- sample(nc
 #colnames(seurat@meta.data) <- tolower(colnames(seurat@meta.data))
 glimpse(seurat@meta.data)
 
-if (any(meta_cols$col_names %in% colnames(seurat@meta.data))) {
-  change_cols <- colnames(seurat@meta.data)[colnames(seurat@meta.data) %in% meta_cols$col_names]
+#Clean metadata column names
+names <- tolower(colnames(seurat@meta.data))
+names <- gsub("\\.", "_", names)
+
+if (any(meta_cols$col_names %in% names)) {
+  change_cols <- names[names %in% meta_cols$col_names]
   for (i in change_cols) {
     clean = FALSE
-    hit_1 <- grepl(i, colnames(seurat@meta.data))
+    hit_1 <- grepl(i, names)
     hit_2 <- meta_cols$col_names %in% i
     print(paste0("changing ", i, " to ", meta_cols$general[hit_2]))
     colnames(seurat@meta.data)[hit_1] <- meta_cols$general[hit_2]
@@ -38,16 +42,20 @@ if (any(meta_cols$col_names %in% colnames(seurat@meta.data))) {
 }
 
 print("Updating data.json")
+names <- tolower(data$metadata)
+names <- gsub("\\.", "_", names)
 if (isFALSE(clean)) {
-  change_cols <- data$metadata[data$metadata %in% meta_cols$col_names]
+  change_cols <- names[names %in% meta_cols$col_names]
   for (i in change_cols) {
-    hit_1 <- grepl(i, data$metadata)
+    hit_1 <- grepl(i, names)
     hit_2 <- meta_cols$col_names %in% i
     data$metadata[hit_1] <- meta_cols$general[hit_2]
   }
-  change_cols <- data$annotation[data$annotation %in% meta_cols$col_names]
+  names <- tolower(data$annotation)
+  names <- gsub("\\.", "_", names)
+  change_cols <- names[names %in% meta_cols$col_names]
   for (i in change_cols) {
-    hit_1 <- grepl(i, data$annotation)
+    hit_1 <- grepl(i, names)
     hit_2 <- meta_cols$col_names %in% i
     data$annotation[hit_1] <- meta_cols$general[hit_2]
   }

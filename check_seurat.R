@@ -80,11 +80,14 @@ seurat[["percent_mt"]] <- PercentageFeatureSet(seurat, pattern = "^Mt\\.|^MT\\.|
 seurat[["RNA"]]@counts[1:5,1:5]
 dplyr::glimpse(seurat@meta.data)
 
+# Clean metadata columns
+names <- tolower(colnames(seurat@meta.data))
+names <- gsub("\\.", "_", names)
 meta_cols <- read_excel(tidy_metadata_path)
-if (any(colnames(seurat@meta.data) %in% meta_cols$col_names)) {
+if (any(names %in% meta_cols$col_names)) {
   change_cols <- colnames(seurat@meta.data)[colnames(seurat@meta.data) %in% meta_cols$col_names]
   for (i in change_cols) {
-    hit_1 <- grepl(i, colnames(seurat@meta.data))
+    hit_1 <- grepl(i, names)
     hit_2 <- meta_cols$col_names %in% i
     print(paste0("changing ", i, " to ", meta_cols$general[hit_2]))
     colnames(seurat@meta.data)[hit_1] <- meta_cols$general[hit_2]

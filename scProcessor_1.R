@@ -164,7 +164,7 @@ print("Defining optimal cluster resolution")
         print(paste0("Optimal cluster resolution: ", data$cluster_resolution[i-1]))
         seurat$seurat_clusters <- seurat[[paste0("RNA_snn_res.", data$cluster_resolution[i-1])]]
         data$cluster_resolution <- data$cluster_resolution[[i-1]]
-        Idents(seurat_sampled) <- seurat_sampled[[paste0("RNA_snn_res.", data$cluster_resolution[i-1])]]
+        Idents(seurat_sampled) <- seurat_sampled[[paste0("RNA_snn_res.", data$cluster_resolution)]]
         seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
         write.csv(seurat.markers, file = "temp/DE_genes.csv")
         break

@@ -174,7 +174,7 @@ print("Compute batch entropy")
 batch_entropy <- list()
 for (b in batch) {
   neighbors <- list()
-  for (i in unique(seurat@meta.data[, b])) {
+  for (i in as.factor(unique(seurat@meta.data[, b]))) {
     temp <- rownames(seurat@meta.data[seurat@meta.data[ , b] == i, ])
     neighbors[[i]] <- rowSums(as.matrix(seurat@graphs$RNA_nn[, temp]))/30
   }
@@ -218,7 +218,7 @@ if (length(batch >= 1)) {
     
     ## Compute the percentage of batch in cell neighbors
     neighbors <- list()
-    for (j in unique(seurat_corrected@meta.data[, i])) {
+    for (j in as.factor(unique(seurat_corrected@meta.data[, i]))) {
       temp <- rownames(seurat_corrected@meta.data[seurat@meta.data[ , i] == j, ])
       neighbors[[j]] <- rowSums(as.matrix(seurat_corrected@graphs$RNA_nn[, temp]))/30
     }

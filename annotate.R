@@ -13,12 +13,12 @@ if (file.exists("out/annotation_copy.xlsx")) {
 # Use DE for checking top genes of some clusters
 DE_genes <- read.csv("temp/DE_genes.csv", row.names = 1)
 
+#Check top 10 genes of a certain cluster
+clust = 30
+head(DE_genes[DE_genes$cluster == clust, ], 10)
+
 # Change annotation
 annotation <- editData(annotation)
-
-#Check top 10 genes of a certain cluster
-clust = 1
-head(DE_genes[DE_genes$cluster == clust, ], 10)
 
 write.xlsx(annotation, "out/annotation.xlsx")
 if(file.exists("out/annotation_copy.xlsx")) {file.remove("out/annotation_copy.xlsx")}

@@ -1,0 +1,22 @@
+---
+title: "Rename_meta.data"
+output: html_document
+---
+
+```{r}
+setwd("~/s3result/CRC_UNB_10X_GSE144735/")
+library(dplyr)
+library(jsonlite)
+seurat <- readRDS("out/harmony.rds")
+glimpse(seurat@meta.data)
+```
+
+```{r}
+seurat@meta.data <- plyr::rename(seurat@meta.data, c(
+  "" = ""
+))
+
+#also change these columns in data.json if necessary!!!
+saveRDS(seurat, "out/harmony.rds")
+```
+

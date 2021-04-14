@@ -129,7 +129,7 @@ print("Defining optimal cluster resolution")
   data$cluster_resolution <- data$cluster_resolution[!duplicated(apply(clusters, 2, max))]
   for (i in seq_along(data$cluster_resolution)) {
     Idents(seurat_sampled) <- seurat_sampled[[paste0("RNA_snn_res.", data$cluster_resolution[i])]]
-    print(paste0("Checking cluster resolution ", data$cluster_resolution[i]))
+    #print(paste0("Checking cluster resolution ", data$cluster_resolution[i]))
     if (i == 1) {
       seurat.markers <- FindAllMarkers(seurat_sampled, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.25, verbose = verbose)
       seurat.markers.unique <- seurat.markers[!duplicated(seurat.markers$gene) & seurat.markers$p_val_adj < 0.05, ]

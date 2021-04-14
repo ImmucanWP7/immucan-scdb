@@ -1,0 +1,15 @@
+dir <- getwd()
+setwd(dir)
+print(dir)
+
+# Create zip and checksum from out folder
+folder_name <- tail(unlist(strsplit(dir, "/")), n=1)
+dir.create(folder_name)
+out_files <- paste0("out/", list.files("out/"))
+file.copy(out_files, folder_name, recursive = TRUE)
+zip(paste0(folder_name, ".zip"), folder_name)
+checksum <- tools::md5sum(paste0(folder_name, ".zip"))
+file.rename(paste0(folder_name, ".zip"), paste0(folder_name, "_-_", checksum, ".zip"))
+file.copy(paste0(folder_name, "_-_", checksum, ".zip"), "../")
+unlink(paste0(folder_name, "_-_", checksum, ".zip"))
+unlink(folder_name, recursive = TRUE)

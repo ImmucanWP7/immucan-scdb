@@ -1,0 +1,28 @@
+{
+  "title":["study display title"],
+  "taxonomy_id":["NCBI ID for species, e.g. 9606 for human"],
+  "ncit_tissue_id":["NCIT ontology tissue IDs (list)"],
+  "mesh_disease_ids":["MeSH disease IDs (list)"],
+
+  "object_path":["./harmony.rds"],
+  "batch_var":["Sample"],
+  "batch_run":["Sample"],
+  "malignant":[false],
+  "metadata":["biopsy","sample_id","treatment","author_annotation"],
+  "genes":['"PTPRC", "CD3D", "CD68", "CLDN5", "DCN", "EPCAM", "KRT18"'],
+
+  "malignant":[false],
+  "norm":[true],
+  "QC_feature_min":[250],
+  "QC_count_min":[200],
+  "QC_mt_max":[15],
+  "pca_dims":[30],
+  "features_var":[2000],
+  "cluster_resolution":[0.3,0.5,1],
+  "integrate":[false],
+  
+  "normal_cells":[false],
+  "nSample":[50000],
+  "verbose":[false],
+  "test":[true]
+}

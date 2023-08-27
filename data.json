@@ -1,0 +1,22 @@
+{
+  "object_path":["./harmony.rds"],
+  "batch_var":["Sample"],
+  "batch_run":["Sample"],
+  "malignant":[false],
+  "metadata":["biopsy","sample_id","treatment","author_annotation"],
+
+  "malignant":[false],
+  "norm":[true],
+  "QC_feature_min":[250],
+  "QC_count_min":[200],
+  "QC_mt_max":[15],
+  "pca_dims":[30],
+  "features_var":[2000],
+  "cluster_resolution":[0.3,0.5,1],
+  "integrate":[false],
+  
+  "normal_cells":[false],
+  "nSample":[50000],
+  "verbose":[false],
+  "test":[true]
+}

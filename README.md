@@ -11,8 +11,7 @@ Data processing is done in two main steps including **quality controc (QC)** and
 - Measure and correct batch effect through [Harmony](https://github.com/immunogenomics/harmony)[^harmony]
 - Atlas mapping and annotation through [Symphony](https://github.com/immunogenomics/symphony)[^symphony]
 - Identify tumor cells with CNA calling through [copyKAT](https://github.com/navinlabcode/copykat)[^copykat]
-- Link everything to Bayer Cell ontology (in development)
-- Differential expression and fraction analysis (in development)
+- Link to cell ontology 
   
 - Universal output files ([SeuratDisk](https://github.com/mojaveazure/seurat-disk)), including:
     - .h5ad (compatible with [scanpy](https://scanpy.readthedocs.io/en/stable/)[^scanpy]

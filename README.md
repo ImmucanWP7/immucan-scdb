@@ -11,13 +11,15 @@ Data processing is done in two main steps including **quality controc (QC)** and
 - Measure and correct batch effect through [Harmony](https://github.com/immunogenomics/harmony)[^harmony]
 - Atlas mapping and annotation through [Symphony](https://github.com/immunogenomics/symphony)[^symphony]
 - Identify tumor cells with CNA calling through [copyKAT](https://github.com/navinlabcode/copykat)[^copykat]
-- Link to cell ontology 
+- Re-Annotate cell cluster based on expert knowledge
+- Link to cell ontology
   
 - Universal output files ([SeuratDisk](https://github.com/mojaveazure/seurat-disk)), including:
     - .h5ad (compatible with [scanpy](https://scanpy.readthedocs.io/en/stable/)[^scanpy]
     - .h5adSeurat (compatible with [Seurat Tools](https://satijalab.org/seurat/)[^seurat])
     - .rds (compatible with [Seurat Tools](https://satijalab.org/seurat/))
     - .csv universal meta data file
+- Package for use in immucan-scdb
   
 
 ## Installation instructions

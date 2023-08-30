@@ -12,14 +12,15 @@ Data processing is done in two main steps including **quality controc (QC)** and
 - Atlas mapping and annotation through [Symphony](https://github.com/immunogenomics/symphony)[^symphony]
 - Identify tumor cells with CNA calling through [copyKAT](https://github.com/navinlabcode/copykat)[^copykat]
 - Re-Annotate cell cluster based on expert knowledge
-- Link to cell ontology
+- Link cell types to [cell ontology](https://www.ebi.ac.uk/ols/index)
   
 - Universal output files ([SeuratDisk](https://github.com/mojaveazure/seurat-disk)), including:
     - .h5ad (compatible with [scanpy](https://scanpy.readthedocs.io/en/stable/)[^scanpy]
     - .h5adSeurat (compatible with [Seurat Tools](https://satijalab.org/seurat/)[^seurat])
     - .rds (compatible with [Seurat Tools](https://satijalab.org/seurat/))
     - .csv universal meta data file
-- Package for use in immucan-scdb
+      
+- Create zip-archive for use in immucan-scdb
   
 
 ## Installation instructions
@@ -64,6 +65,8 @@ The Seurat Object and the data.json file should be placed together in one folder
 The pipeline can be run by executing the **QC** and **Annotate** apps sequentially. For a detailed walkthrough of the execution and generated outputs see this [vignette]().
 
 ### 1. Run **QC**:
+
+**QC** will validate the provided seurat object, create basic QC measures, setup a data.json file, if not provided and recommend some pipeline settings, such as integration.
 ```
 singularity run --bind <YOUR-OUTPUT-DIR>:/mnt/outdir --app QC scProcessoR.sif
 ```
@@ -71,13 +74,34 @@ singularity run --bind <YOUR-OUTPUT-DIR>:/mnt/outdir --app QC scProcessoR.sif
 Afterwards check the data.json file, which might have been updated with the pipelines suggestions (A copy of your original file is kept in the output directory). Also inspect the QC plots generated in <YOUR-OUTPUT-DIR>/QC/.  
 
  ### 2. Run **Annotate**:
+
+ **Annotate** will integrate the data and annotate cell types as well as give indication on malignant cells, if applicable. For each step various outputs will be generated.
 ```
 singularity run --bind <YOUR-OUTPUT-DIR>:/mnt/outdir --app Annotate scProcessoR.sif
 ```
 
+ ### 3. Optional - Run **ReAnnotate**:
+ 
+ With **ReAnnotate**, cell identity of clusters can be changed according to expert knowledge. 
+```
+singularity run --bind <YOUR-OUTPUT-DIR>:/mnt/outdir --app ReAnnotate scProcessoR.sif
+```
+
+ ### 4. Optional - Run **IMMUCANscdb**:
+ 
+ Running **IMMUCANscdb** creates a zip-archive containing all necessary files for use in the immucan single cell data base.
+```
+singularity run --bind <YOUR-OUTPUT-DIR>:/mnt/outdir --app ReAnnotate scProcessoR.sif
+```
+
+
+<br/><br/>
+
+
+
 Further help for individual apps can be accessed via ```singularity run-help --app <AppName> scProcessoR.sif```
 
-
+<br/><br/>
 
 
 [^seurat]: [Seurat Tools](https://satijalab.org/seurat/) ; DOI: [10.1038/nbt.3192](https://doi.org/10.1038/nbt.3192)

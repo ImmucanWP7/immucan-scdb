@@ -53,6 +53,7 @@ All run parameters are specified in this single data.json file with some mandato
 | cluster_resolution | no        | a sequence of different cluster resolutions, scProcessor will select the most optimal resolution | 0.3,0.5,1 |
 | integrate          | no        | wether data should be integrated. This overwrites the pipelines suggestion | true |
 |                    |           |  |   |
+| noQC               | no        | if true data is processsed from the provided seurat object, no need to run scPRocessoR-QC | false | 
 | normal_cells       | no        | cell type taken as normal cells to increase confidence of malingant cell prediction. null (standard Macrophages are taken), false (no normal cells taken), ["fibroblasts", "macrophages"] | null |
 | nSample            | no        | number of cells to take for subsasmpling during test runs or intense computing steps | 50000 | 
 | verbose            | no        | if true pipeline increases verbosity | false |

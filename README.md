@@ -45,7 +45,7 @@ All run parameters are specified in this single data.json file with some mandato
 | annotation         | no        | meta data columns that contain cell annotation          | ["author_annotation", "celltype"] |     
 | metadata           | no        | meta data columns that will be kept in the final object | ["biopsy", "treatment"] |
 | genes              | no        | genes of interest for which additional output will be generated | ["CD3D", "EPCAM"]
-| norm               | no        | wether data is already normalised [boolean]. Will otherwise be determined automaticaly | false |
+| norm               | no        | wether data is **already** normalised [boolean]. Will otherwise be determined automaticaly | false |
 | QC_feature_min     | no        | Lower threshold for number of detected genes. Cells with lower gene number will be discarded | 250 | 
 | QC_mt_max          | no        | Upper threshold for percentage of detected mitochondrial genes. Cells with higher percentage will be discarded | 15 |
 | pca_dims           | no        | number of PCA dimensions to take for further processing | 30 |

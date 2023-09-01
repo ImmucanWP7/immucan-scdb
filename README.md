@@ -69,7 +69,7 @@ The pipeline can be run by executing the **QC** and **Annotate** apps sequential
 
 **QC** will validate the provided seurat object, create basic QC measures, setup a data.json file, if not provided and recommend some pipeline settings, such as integration.
 ```
-singularity run --bind <YOUR-OUTPUT-DIR>:/mnt/outdir --app QC scProcessoR.sif
+singularity run --no-home --bind <YOUR-OUTPUT-DIR>:/mnt/outdir --app QC scProcessoR.sif
 ```
 
 Afterwards check the data.json file, which might have been updated with the pipelines suggestions (A copy of your original file is kept in the output directory). Also inspect the QC plots generated in <YOUR-OUTPUT-DIR>/QC/.  
@@ -78,21 +78,21 @@ Afterwards check the data.json file, which might have been updated with the pipe
 
  **Annotate** will integrate the data and annotate cell types as well as give indication on malignant cells, if applicable. For each step various outputs will be generated.
 ```
-singularity run --bind <YOUR-OUTPUT-DIR>:/mnt/outdir --app Annotate scProcessoR.sif
+singularity run --no-home --bind <YOUR-OUTPUT-DIR>:/mnt/outdir --app Annotate scProcessoR.sif
 ```
 
  ### 3. Optional - Run **ReAnnotate**:
  
  With **ReAnnotate**, cell identity of clusters can be changed according to expert knowledge. 
 ```
-singularity run --bind <YOUR-OUTPUT-DIR>:/mnt/outdir --app ReAnnotate scProcessoR.sif
+singularity run --no-home --bind <YOUR-OUTPUT-DIR>:/mnt/outdir --app ReAnnotate scProcessoR.sif
 ```
 
  ### 4. Optional - Run **IMMUCANscdb**:
  
  Running **IMMUCANscdb** creates a zip-archive containing all necessary files for use in the immucan single cell data base.
 ```
-singularity run --bind <YOUR-OUTPUT-DIR>:/mnt/outdir --app ReAnnotate scProcessoR.sif
+singularity run --no-home --bind <YOUR-OUTPUT-DIR>:/mnt/outdir --app ReAnnotate scProcessoR.sif
 ```
 
 
